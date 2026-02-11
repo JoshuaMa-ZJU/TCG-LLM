@@ -2,7 +2,7 @@
 
 <h1>TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization</h1>
 
-<h5 align="center">
+</div>
 # TCG-LLM
 This repo is for the paper TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization
 ## Introduction

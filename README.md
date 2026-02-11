@@ -1,30 +1,3 @@
-<div align=center>
-
-<h1>TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization</h1>
-
-<h5 align="center">
-
-</h5>
-
-<div>
-      <a href="mailto:xiaohao.liu@u.nus.edu">Xiaohao Liu</a><sup>1</sup>,
-      <a href="mailto:wujie@cuc.edu.cn">Jie Wu</a><sup>2</sup>,
-      <a href="mailto:taozhulin@gmail.com">Zhulin Tao</a><sup>2</sup><sup>*</sup>,
-      <a href="mailto:yunshan.ma@u.nus.edu">Yunshan Ma</a><sup>1</sup>,
-      <a href="mailto:yinewei.wei@hotmail.com">Yinwei Wei</a><sup>3</sup>,
-      <a href="mailto:dcscts@nus.edu.sg">Tat-Seng Chua</a><sup>1</sup>
-</div>
-
-<div>
-  <sup>1</sup>National University of Singapore, 
-  <sup>2</sup>Communication University of China, 
-  <sup>3</sup>Shandong University
-</div>   
-<div>
-<sup>*</sup>Corresponding author.
-   </div>
-
-</div>
 # TCG-LLM
 This repo is for the paper TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization
 ## Introduction

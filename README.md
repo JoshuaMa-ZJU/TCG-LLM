@@ -1,7 +1,9 @@
 # TCG-LLM
 This repo is for the paper TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization.
+
 ## Introduction
 In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG-LLM)***, a multimodal large language model for basin-scale TCG detection and localization. We design a physics-aware fine-tuning strategy, using encoders based on convolutional neural networks to extract TC-specific physically meaningful features, which are injected in VLMs to guide the model to incorporate meteorological knowledge in fine-tuning. To improve generalization beyond training patterns, we further incorporate Group Relative Policy Optimization (GRPO) with quality-based reward shaping, using an online-learned quality function to provide dense intermediate learning signals that accelerate convergence and improve accuracy. We also apply fine-grained penalty on false negative cases to reduce miss TCG detections. We construct the ***Tropical Cyclogenesis Detection and Location Dataset (TCDLD)*** for evaluation. Experiments show that TCG-LLM reduces TC detection mean absolute error and localization mean distance error by 40.87% and 31.2%, respectively, compared with state-of-the-art baselines.
+
 ## Framework
 <div align="center">
   <img src="TCG-LLM.png" alt="The overall architecture of TCG-LLM" width="800">
@@ -12,34 +14,20 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
   The VLM prompts consist of four components: (1) a system prompt that introduces the overall task, (2) a task description prompt that specifies the TCG detection and localization objective, (3) a chain-of-thought (CoT) prompt that encourages decomposing complex problems into intermediate steps to improve the accuracy and stability of multi-step reasoning, and (4) a format-constraint prompt that specifies the output formats to facilitate downstream parsing and evaluation.  
   
   The fine-tuning of TCG-LLM proceeds in two stages. First, we apply SFT to the VLM using Quantized Low-Rank Adaptation (QLoRA) PEFT. To incorporate TC physics during adaptation, we propose a physics-aware fine-tuning strategy that injects the CNN-encoder feature vectors into the self-attention computation, allowing the LLM to leverage physically informative representations throughout fine-tuning. Second, we further perform RL fine-tuning using GRPO. We adopt quality-based fine-grained reward shaping by augmenting the reward with an online-learned quality function, which provides intermediate signals that reflect the improvement of the current state, helping the model identify the direction and magnitude of updates more effectively and learn better strategies. 
-## Data
-We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,432 samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
-# TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization
-
-Official implementation of *"TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization"*.
-
-## Overview
-
-TCG-LLM is a two-stage framework that adapts a Vision-Language Model (Qwen3-VL-8B) for basin-scale tropical cyclogenesis (TCG) detection and localization. It combines:
-
-1. **Physics-aware CNN Encoders** — Multi-scale feature extraction from satellite imagery, geopotential height (GPH), and sea surface temperature (SST) fields.
-2. **KV Prefix Injection** — CNN encoder outputs are projected into 128 prefix tokens and injected into VLM self-attention layers.
-3. **Supervised Fine-tuning (SFT)** — QLoRA adaptation with cooperative training of LoRA weights and prefix encoder.
-4. **GRPO Reinforcement Learning** — Quality-based reward shaping with five reward components for detection and localization optimization.
 
 ## Repository Structure
 
 ```
-├── cnn_encoders.py                         # Physics-aware CNN encoders (Section 3.2–3.4)
-├── prefix_injector.py                      # KV prefix injection module (Section 3.5)
-├── train_cyclone_detector_gph.py           # Stage 1: SFT training script (Section 3.5)
-├── train_cyclone_grpo_qwen3_fast_gph.py    # Stage 2: GRPO RL fine-tuning script (Section 3.6)
-└── TCDLD/                                  # Dataset (see below)
+├── cnn_encoders.py                         # Physics-aware CNN encoders 
+├── prefix_injector.py                      # KV prefix injection module 
+├── train_SFT.py           # Stage 1: SFT training script 
+├── train_GRPO.py    # Stage 2: GRPO RL fine-tuning script 
+└── TCDLD/                                  # Dataset 
 ```
 
 ## TCDLD Dataset
 
-**Tropical Cyclone Detection and Localization Dataset (TCDLD)** covers **6 ocean basins** across **2019-01-01 to 2024-09-30** at 12-hour temporal resolution.
+We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,432 samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
 
 | Statistic | Value |
 |-----------|-------|

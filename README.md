@@ -102,7 +102,7 @@ Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 202
 
 ## Scripts
 
-### 1. `cnn_encoders.py` — Physics-aware CNN Encoders (Section 3.2–3.4)
+### 1. `cnn_encoders.py` — Physics-aware CNN Encoders 
 
 Standalone CNN module containing:
 - **`ImageEncoder`**: Multi-scale (3×3, 5×5, 7×7) convolution on satellite images with gradient channel augmentation
@@ -120,7 +120,7 @@ python cnn_encoders.py
 
 The trained checkpoint (`best.pt`) is used in Stage 1 & 2 for physics-aware prefix injection.
 
-### 2. `prefix_injector.py` — KV Prefix Injection (Section 3.5)
+### 2. `prefix_injector.py` — KV Prefix Injection 
 
 Lightweight module that projects CNN encoder outputs (768-dim fused vector) into KV prefix tokens injected into every VLM self-attention layer:
 
@@ -128,11 +128,11 @@ Lightweight module that projects CNN encoder outputs (768-dim fused vector) into
 - Output: 128 prefix tokens as `(K, V)` pairs per attention layer
 - Supports shared or per-layer prefix generation
 
-### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training (Section 3.5)
+### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training
 
 Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix injection.
 
-**Key hyperparameters (Appendix A.3):**
+**Key hyperparameters:**
 
 | Parameter | Value |
 |-----------|-------|
@@ -165,11 +165,11 @@ output_dir     = "/path/to/output/"
 cnn_feature_ckpt = "/path/to/cnn_encoders/best.pt"
 ```
 
-### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning (Section 3.6)
+### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning 
 
 GRPO reinforcement learning with quality-based reward shaping. Loads the SFT adapter from Stage 1 and further optimizes via reward functions.
 
-**Reward components (Eq. 1–7):**
+**Reward components:**
 
 | Component | Weight | Description |
 |-----------|--------|-------------|
@@ -179,7 +179,7 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 | Fine-grained Reward (Eq. 3) | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
 | Quality Shaping (Eq. 4–6) | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
 
-**Key hyperparameters (Appendix A.3):**
+**Key hyperparameters:**
 
 | Parameter | Value |
 |-----------|-------|
@@ -204,11 +204,11 @@ Step 0: Train CNN Encoders
   → Produces: best.pt (physics-aware CNN checkpoint)
 
 Step 1: SFT with Physics-aware Prefix Injection
-  python train_cyclone_detector_gph.py
+  python train_SFT.py
   → Produces: QLoRA adapter + prefix encoder weights
 
 Step 2: GRPO RL Fine-tuning
-  python train_cyclone_grpo_qwen3_fast_gph.py
+  python train_GRPO.py
   → Produces: Final TCG-LLM model
 ```
 

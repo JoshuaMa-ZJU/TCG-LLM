@@ -100,12 +100,55 @@ Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 202
 }
 ```
 
-**Usage:**
+## Scripts
 
+### 1. `cnn_encoders.py` — Physics-aware CNN Encoders (Section 3.2–3.4)
+
+Standalone CNN module containing:
+- **`ImageEncoder`**: Multi-scale (3×3, 5×5, 7×7) convolution on satellite images with gradient channel augmentation
+- **`GPHEncoder`**: 3D convolution + self-attention over 6 pressure levels for vortex pattern detection
+- **`SSTEncoder` (ColdCoreDetector)**: Laplacian-based cold-core detection sensitive to TC-induced SST anomalies
+- **`CrossAttentionModule`**: Cross-modal feature fusion
+- **`FusionTransformer`**: Multi-layer Transformer encoder for unified representation
+- **`JSONDecoder`**: Structured JSON output prediction (count + positions)
+
+Can be trained independently as a CNN baseline:
+
+```bash
+python cnn_encoders.py
+```
+
+The trained checkpoint (`best.pt`) is used in Stage 1 & 2 for physics-aware prefix injection.
+
+### 2. `prefix_injector.py` — KV Prefix Injection (Section 3.5)
+
+Lightweight module that projects CNN encoder outputs (768-dim fused vector) into KV prefix tokens injected into every VLM self-attention layer:
+
+- Input: `z ∈ ℝ^{768}` (concatenation of image, GPH, SST encoder outputs, each 256-dim)
+- Output: 128 prefix tokens as `(K, V)` pairs per attention layer
+- Supports shared or per-layer prefix generation
+
+### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training (Section 3.5)
+
+Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix injection.
+
+**Key hyperparameters (Appendix A.3):**
+
+| Parameter | Value |
+|-----------|-------|
+| Base model | Qwen3-VL-8B-Instruct |
+| LoRA rank / alpha | 16 / 32 |
+| Learning rate | 1.5e-4 |
+| Batch size (effective) | 16 |
+| Epochs | 3 |
+| Prefix length | 128 tokens |
+| Prefix encoder LR | 1.5e-4 |
+
+**Usage:**
 
 ```bash
 # Edit ScriptConfig paths to match your data location, then:
-python train_SFT.py
+python train_cyclone_detector_gph.py
 ```
 
 **Key configuration (modify `ScriptConfig` in the script):**
@@ -122,7 +165,7 @@ output_dir     = "/path/to/output/"
 cnn_feature_ckpt = "/path/to/cnn_encoders/best.pt"
 ```
 
-### GRPO RL Fine-tuning 
+### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning (Section 3.6)
 
 GRPO reinforcement learning with quality-based reward shaping. Loads the SFT adapter from Stage 1 and further optimizes via reward functions.
 
@@ -136,7 +179,7 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 | Fine-grained Reward (Eq. 3) | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
 | Quality Shaping (Eq. 4–6) | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
 
-**Key hyperparameters:**
+**Key hyperparameters (Appendix A.3):**
 
 | Parameter | Value |
 |-----------|-------|
@@ -186,19 +229,8 @@ Step 2: GRPO RL Fine-tuning
 pip install torch transformers trl peft unsloth scipy numpy Pillow
 ```
 
-## Citation
-
-If you find this code or dataset useful, please cite:
-
-```bibtex
-@inproceedings{tcg-llm-2026,
-  title={TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization},
-  author={},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD)},
-  year={2026}
-}
-```
 
 ## License
 
 This project is released under the [MIT License](LICENSE).
+

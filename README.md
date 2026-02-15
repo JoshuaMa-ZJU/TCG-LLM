@@ -27,7 +27,7 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 
 ## TCDLD Dataset
 
-We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,432 samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
+We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,43` samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
 
 | Statistic | Value |
 |-----------|-------|
@@ -36,7 +36,7 @@ We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https:
 | Negative (no TC) | 9,074 (58.8%) |
 | Ocean basins | EP, NA, NI, SI, SP, WP |
 | Temporal resolution | 12 hours (00:00 / 12:00 UTC) |
-| Total size | ~50 GB |
+| Total size | ~138 GB |
 
 ### Directory Structure
 
@@ -99,50 +99,6 @@ Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 202
     'tc_msw': [64.0, None, None]  # knots; None = intensity unavailable
 }
 ```
-
-## Scripts
-
-### 1. `cnn_encoders.py` — Physics-aware CNN Encoders (Section 3.2–3.4)
-
-Standalone CNN module containing:
-- **`ImageEncoder`**: Multi-scale (3×3, 5×5, 7×7) convolution on satellite images with gradient channel augmentation
-- **`GPHEncoder`**: 3D convolution + self-attention over 6 pressure levels for vortex pattern detection
-- **`SSTEncoder` (ColdCoreDetector)**: Laplacian-based cold-core detection sensitive to TC-induced SST anomalies
-- **`CrossAttentionModule`**: Cross-modal feature fusion
-- **`FusionTransformer`**: Multi-layer Transformer encoder for unified representation
-- **`JSONDecoder`**: Structured JSON output prediction (count + positions)
-
-Can be trained independently as a CNN baseline:
-
-```bash
-python cnn_encoders.py
-```
-
-The trained checkpoint (`best.pt`) is used in Stage 1 & 2 for physics-aware prefix injection.
-
-### 2. `prefix_injector.py` — KV Prefix Injection (Section 3.5)
-
-Lightweight module that projects CNN encoder outputs (768-dim fused vector) into KV prefix tokens injected into every VLM self-attention layer:
-
-- Input: `z ∈ ℝ^{768}` (concatenation of image, GPH, SST encoder outputs, each 256-dim)
-- Output: 128 prefix tokens as `(K, V)` pairs per attention layer
-- Supports shared or per-layer prefix generation
-
-### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training (Section 3.5)
-
-Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix injection.
-
-**Key hyperparameters (Appendix A.3):**
-
-| Parameter | Value |
-|-----------|-------|
-| Base model | Qwen3-VL-8B-Instruct |
-| LoRA rank / alpha | 16 / 32 |
-| Learning rate | 1.5e-4 |
-| Batch size (effective) | 16 |
-| Epochs | 3 |
-| Prefix length | 128 tokens |
-| Prefix encoder LR | 1.5e-4 |
 
 **Usage:**
 

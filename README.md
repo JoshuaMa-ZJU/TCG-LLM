@@ -102,9 +102,10 @@ Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 202
 
 **Usage:**
 
+
 ```bash
 # Edit ScriptConfig paths to match your data location, then:
-python train_cyclone_detector_gph.py
+python train_SFT.py
 ```
 
 **Key configuration (modify `ScriptConfig` in the script):**
@@ -121,7 +122,7 @@ output_dir     = "/path/to/output/"
 cnn_feature_ckpt = "/path/to/cnn_encoders/best.pt"
 ```
 
-### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning (Section 3.6)
+### GRPO RL Fine-tuning 
 
 GRPO reinforcement learning with quality-based reward shaping. Loads the SFT adapter from Stage 1 and further optimizes via reward functions.
 
@@ -135,7 +136,7 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 | Fine-grained Reward (Eq. 3) | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
 | Quality Shaping (Eq. 4–6) | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
 
-**Key hyperparameters (Appendix A.3):**
+**Key hyperparameters:**
 
 | Parameter | Value |
 |-----------|-------|

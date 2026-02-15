@@ -20,8 +20,8 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 ```
 ├── cnn_encoders.py                         # Physics-aware CNN encoders 
 ├── prefix_injector.py                      # KV prefix injection module 
-├── train_SFT.py           # Stage 1: SFT training script 
-├── train_GRPO.py    # Stage 2: GRPO RL fine-tuning script 
+├── train_SFT.py                            # Stage 1: SFT training script 
+├── train_GRPO.py                           # Stage 2: GRPO RL fine-tuning script 
 └── TCDLD/                                  # Dataset 
 ```
 
@@ -128,7 +128,7 @@ Lightweight module that projects CNN encoder outputs (768-dim fused vector) into
 - Output: 128 prefix tokens as `(K, V)` pairs per attention layer
 - Supports shared or per-layer prefix generation
 
-### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training
+### 3. `train_SFT.py` — Stage 1: SFT Training
 
 Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix injection.
 
@@ -148,7 +148,7 @@ Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix inject
 
 ```bash
 # Edit ScriptConfig paths to match your data location, then:
-python train_cyclone_detector_gph.py
+python train_SFT.py
 ```
 
 **Key configuration (modify `ScriptConfig` in the script):**
@@ -165,7 +165,7 @@ output_dir     = "/path/to/output/"
 cnn_feature_ckpt = "/path/to/cnn_encoders/best.pt"
 ```
 
-### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning 
+### 4. `train_GRPO.py` — Stage 2: GRPO RL Fine-tuning 
 
 GRPO reinforcement learning with quality-based reward shaping. Loads the SFT adapter from Stage 1 and further optimizes via reward functions.
 
@@ -193,7 +193,7 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 
 ```bash
 # Set initial_adapter_path to your SFT output, then:
-python train_cyclone_grpo_qwen3_fast_gph.py
+python train_GRPO.py
 ```
 
 ## Training Pipeline

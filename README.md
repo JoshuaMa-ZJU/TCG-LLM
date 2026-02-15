@@ -12,5 +12,248 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
   The VLM prompts consist of four components: (1) a system prompt that introduces the overall task, (2) a task description prompt that specifies the TCG detection and localization objective, (3) a chain-of-thought (CoT) prompt that encourages decomposing complex problems into intermediate steps to improve the accuracy and stability of multi-step reasoning, and (4) a format-constraint prompt that specifies the output formats to facilitate downstream parsing and evaluation.  
   
   The fine-tuning of TCG-LLM proceeds in two stages. First, we apply SFT to the VLM using Quantized Low-Rank Adaptation (QLoRA) PEFT. To incorporate TC physics during adaptation, we propose a physics-aware fine-tuning strategy that injects the CNN-encoder feature vectors into the self-attention computation, allowing the LLM to leverage physically informative representations throughout fine-tuning. Second, we further perform RL fine-tuning using GRPO. We adopt quality-based fine-grained reward shaping by augmenting the reward with an online-learned quality function, which provides intermediate signals that reflect the improvement of the current state, helping the model identify the direction and magnitude of updates more effectively and learn better strategies. 
-## data
+## Data
 We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,432 samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
+# TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization
+
+Official implementation of *"TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization"*.
+
+## Overview
+
+TCG-LLM is a two-stage framework that adapts a Vision-Language Model (Qwen3-VL-8B) for basin-scale tropical cyclogenesis (TCG) detection and localization. It combines:
+
+1. **Physics-aware CNN Encoders** — Multi-scale feature extraction from satellite imagery, geopotential height (GPH), and sea surface temperature (SST) fields.
+2. **KV Prefix Injection** — CNN encoder outputs are projected into 128 prefix tokens and injected into VLM self-attention layers.
+3. **Supervised Fine-tuning (SFT)** — QLoRA adaptation with cooperative training of LoRA weights and prefix encoder.
+4. **GRPO Reinforcement Learning** — Quality-based reward shaping with five reward components for detection and localization optimization.
+
+## Repository Structure
+
+```
+├── cnn_encoders.py                         # Physics-aware CNN encoders (Section 3.2–3.4)
+├── prefix_injector.py                      # KV prefix injection module (Section 3.5)
+├── train_cyclone_detector_gph.py           # Stage 1: SFT training script (Section 3.5)
+├── train_cyclone_grpo_qwen3_fast_gph.py    # Stage 2: GRPO RL fine-tuning script (Section 3.6)
+└── TCDLD/                                  # Dataset (see below)
+```
+
+## TCDLD Dataset
+
+**Tropical Cyclone Detection and Localization Dataset (TCDLD)** covers **6 ocean basins** across **2019-01-01 to 2024-09-30** at 12-hour temporal resolution.
+
+| Statistic | Value |
+|-----------|-------|
+| Total samples | 15,431 |
+| Positive (has TC) | 6,357 (41.2%) |
+| Negative (no TC) | 9,074 (58.8%) |
+| Ocean basins | EP, NA, NI, SI, SP, WP |
+| Temporal resolution | 12 hours (00:00 / 12:00 UTC) |
+| Total size | ~50 GB |
+
+### Directory Structure
+
+```
+TCDLD/
+├── image/          # Satellite brightness temperature images (.npy)
+│                   #   15,431 files, ~32 GB
+│                   #   Format: dict{'image': ndarray(H, W), float16}
+│                   #   Typical shape: ~715×1786 (varies by basin)
+│
+├── gph/            # Geopotential height fields at 6 pressure levels (.npy)
+│                   #   15,431 files, ~15 GB
+│                   #   Format: ndarray(6, H, W), float16
+│                   #   6 levels: 200, 500, 700, 850, 925, 1000 hPa
+│
+├── sst/            # Sea surface temperature fields (.npy)
+│                   #   15,431 files, ~2.5 GB
+│                   #   Format: ndarray(H, W), float16
+│
+├── label/          # Ground-truth labels from IBTrACS (.npy)
+│                   #   15,431 files, ~5 MB
+│                   #   Format: dict{
+│                   #     'tc_count': int,
+│                   #     'tc_positions': [(lat, lon), ...],
+│                   #     'tc_sids': [str, ...],    # IBTrACS storm IDs
+│                   #     'tc_msw': [float, ...]    # max sustained wind (kt)
+│                   #   }
+│
+├── image_docs/     # Satellite image textual descriptors (.md)
+│                   #   Cloud structure analysis, cold-cloud center detection,
+│                   #   rotational symmetry, brightness temperature statistics
+│
+├── gph_docs/       # GPH textual descriptors (.md)
+│                   #   Low geopotential height center detection at 500hPa,
+│                   #   spatial variability analysis, gradient features
+│
+└── sst_docs/       # SST textual descriptors (.md)
+                    #   Mean SST, warm pool coverage (>26.5°C),
+                    #   cold-core detection with cooling amplitude
+```
+
+### Filename Convention
+
+All files follow the pattern: `{YYYYMMDD}_{HHMM}_{BASIN}_{type}.{ext}`
+
+- **Date/Time**: `20240915_0000` = September 15, 2024 at 00:00 UTC
+- **Basin code**: `WP` (Western Pacific), `EP` (Eastern Pacific), `NA` (North Atlantic), `NI` (North Indian), `SI` (South Indian), `SP` (South Pacific)
+- **Type**: `image`, `gph`, `sst`, `label`
+
+Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 2024-09-15 00:00 UTC
+
+### Label Example
+
+```python
+# Sample with 3 active tropical cyclones (WP basin, 2024-09-15)
+{
+    'tc_count': 3,
+    'tc_positions': [(29.7, 127.1), (12.1, 144.6), (16.7, 126.0)],
+    'tc_sids': ['2024254N10148', '2024259N12145', '2024259N17126'],
+    'tc_msw': [64.0, None, None]  # knots; None = intensity unavailable
+}
+```
+
+## Scripts
+
+### 1. `cnn_encoders.py` — Physics-aware CNN Encoders (Section 3.2–3.4)
+
+Standalone CNN module containing:
+- **`ImageEncoder`**: Multi-scale (3×3, 5×5, 7×7) convolution on satellite images with gradient channel augmentation
+- **`GPHEncoder`**: 3D convolution + self-attention over 6 pressure levels for vortex pattern detection
+- **`SSTEncoder` (ColdCoreDetector)**: Laplacian-based cold-core detection sensitive to TC-induced SST anomalies
+- **`CrossAttentionModule`**: Cross-modal feature fusion
+- **`FusionTransformer`**: Multi-layer Transformer encoder for unified representation
+- **`JSONDecoder`**: Structured JSON output prediction (count + positions)
+
+Can be trained independently as a CNN baseline:
+
+```bash
+python cnn_encoders.py
+```
+
+The trained checkpoint (`best.pt`) is used in Stage 1 & 2 for physics-aware prefix injection.
+
+### 2. `prefix_injector.py` — KV Prefix Injection (Section 3.5)
+
+Lightweight module that projects CNN encoder outputs (768-dim fused vector) into KV prefix tokens injected into every VLM self-attention layer:
+
+- Input: `z ∈ ℝ^{768}` (concatenation of image, GPH, SST encoder outputs, each 256-dim)
+- Output: 128 prefix tokens as `(K, V)` pairs per attention layer
+- Supports shared or per-layer prefix generation
+
+### 3. `train_cyclone_detector_gph.py` — Stage 1: SFT Training (Section 3.5)
+
+Supervised fine-tuning of Qwen3-VL-8B with QLoRA and physics-aware prefix injection.
+
+**Key hyperparameters (Appendix A.3):**
+
+| Parameter | Value |
+|-----------|-------|
+| Base model | Qwen3-VL-8B-Instruct |
+| LoRA rank / alpha | 16 / 32 |
+| Learning rate | 1.5e-4 |
+| Batch size (effective) | 16 |
+| Epochs | 3 |
+| Prefix length | 128 tokens |
+| Prefix encoder LR | 1.5e-4 |
+
+**Usage:**
+
+```bash
+# Edit ScriptConfig paths to match your data location, then:
+python train_cyclone_detector_gph.py
+```
+
+**Key configuration (modify `ScriptConfig` in the script):**
+
+```python
+data_folder    = "/path/to/TCDLD/image"
+docs_folder    = "/path/to/TCDLD/image_docs"
+label_folder   = "/path/to/TCDLD/label"
+gph_folder     = "/path/to/TCDLD/gph"
+gph_docs_folder= "/path/to/TCDLD/gph_docs"
+sst_folder     = "/path/to/TCDLD/sst"
+sst_docs_folder= "/path/to/TCDLD/sst_docs"
+output_dir     = "/path/to/output/"
+cnn_feature_ckpt = "/path/to/cnn_encoders/best.pt"
+```
+
+### 4. `train_cyclone_grpo_qwen3_fast_gph.py` — Stage 2: GRPO RL Fine-tuning (Section 3.6)
+
+GRPO reinforcement learning with quality-based reward shaping. Loads the SFT adapter from Stage 1 and further optimizes via reward functions.
+
+**Reward components (Eq. 1–7):**
+
+| Component | Weight | Description |
+|-----------|--------|-------------|
+| Format Reward | gate | Valid JSON output check (binary) |
+| Count Reward (Eq. 1) | $w_c = 0.3$ | $r_{count} = 1 - \|n_{pred} - n_{gt}\| / \max(n_{gt}, 1)$ |
+| Position Reward (Eq. 2) | $w_p = 0.3$ | $r_{pos} = \exp(-d / \text{Scale}_{pos})$, Scale_pos = 100 km |
+| Fine-grained Reward (Eq. 3) | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
+| Quality Shaping (Eq. 4–6) | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
+
+**Key hyperparameters (Appendix A.3):**
+
+| Parameter | Value |
+|-----------|-------|
+| Learning rate | 5e-5 |
+| KL penalty (β) | 0.01 |
+| Epochs | 2 |
+| Num generations (G) | 8 |
+| Batch size (effective) | 16 |
+
+**Usage:**
+
+```bash
+# Set initial_adapter_path to your SFT output, then:
+python train_cyclone_grpo_qwen3_fast_gph.py
+```
+
+## Training Pipeline
+
+```
+Step 0: Train CNN Encoders
+  python cnn_encoders.py
+  → Produces: best.pt (physics-aware CNN checkpoint)
+
+Step 1: SFT with Physics-aware Prefix Injection
+  python train_cyclone_detector_gph.py
+  → Produces: QLoRA adapter + prefix encoder weights
+
+Step 2: GRPO RL Fine-tuning
+  python train_cyclone_grpo_qwen3_fast_gph.py
+  → Produces: Final TCG-LLM model
+```
+
+## Requirements
+
+- Python ≥ 3.10
+- PyTorch ≥ 2.1 with CUDA support
+- transformers ≥ 4.45
+- trl ≥ 0.12
+- peft ≥ 0.13
+- unsloth (for efficient QLoRA training)
+- scipy (for Hungarian matching in reward computation)
+- numpy, Pillow
+
+**Recommended hardware:** NVIDIA A100 80GB (or equivalent) for full training. 4-bit quantization (QLoRA) enables training on GPUs with ≥ 24GB VRAM.
+
+```bash
+pip install torch transformers trl peft unsloth scipy numpy Pillow
+```
+
+## Citation
+
+If you find this code or dataset useful, please cite:
+
+```bibtex
+@inproceedings{tcg-llm-2026,
+  title={TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization},
+  author={},
+  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD)},
+  year={2026}
+}
+```
+
+## License
+
+This project is released under the [MIT License](LICENSE).

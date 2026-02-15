@@ -121,6 +121,7 @@ pure_eval==0.2.3
 pyarrow==22.0.0
 Pygments==2.19.2
 pyparsing==3.2.3
+python==3.12.3
 python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
 pytz==2025.2

@@ -25,6 +25,7 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 ├── plot_overall.py                         # Overall error comparison visualization
 ├── plot_basinwise.py                       # Basin-wise performance comparison visualization
 ├── figures                                 # figures
+├── results                                 # TCG detection and localization results of TCG-LLM and baselines on TCDLD test set
 └── TCDLD/                                  # Dataset 
 ```
 

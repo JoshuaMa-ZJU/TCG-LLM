@@ -1,5 +1,6 @@
 """
 Comprehensive Multi-Model Basin-wise Comparison
+High-impact publication-ready figure for top-tier journals
 """
 
 import json
@@ -28,22 +29,22 @@ BASIN_ORDER = ['NA', 'EP', 'WP', 'NI', 'SI', 'SP']
 
 # Model configuration
 MODEL_CONFIG = {
-    'proposed': {'name': 'TCG-LLM', 'color': '#E64B35', 'marker': 'o', 'file': 'TCG-LLM.jsonl'},
+    'proposed': {'name': 'Proposed', 'color': '#E64B35', 'marker': 'o', 'file': 'proposed.jsonl'},
     'gpt': {'name': 'GPT-5.2', 'color': '#00A087', 'marker': 's', 'file': 'gpt.jsonl'},
-    'claude': {'name': 'Claude-4.5', 'color': '#4DBBD5', 'marker': '^', 'file': 'claude.jsonl'},
-    'gemini': {'name': 'Gemini-3', 'color': '#3C5488', 'marker': 'D', 'file': 'gemini.jsonl'},
-    'maskrcnn': {'name': 'Mask-RCNN', 'color': '#F39B7F', 'marker': 'v', 'file': 'maskrcnn.jsonl'},
+    'claude': {'name': 'Gemini-3', 'color': '#4DBBD5', 'marker': '^', 'file': 'claude.jsonl'},
+    'gemini': {'name': 'Claude-4.5', 'color': '#3C5488', 'marker': 'D', 'file': 'qwen235b.jsonl'},
+    'weytcnet': {'name': 'WEY-TCNet', 'color': '#F39B7F', 'marker': 'v', 'file': 'weytcnet.jsonl'},
 }
-MODEL_ORDER = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+MODEL_ORDER = ['proposed', 'gpt', 'claude', 'gemini', 'weytcnet']
 
 plt.rcParams.update({
     'font.family': 'Times New Roman',
-    'font.size': 14,
-    'axes.labelsize': 14,
-    'axes.titlesize': 15,
-    'legend.fontsize': 14,
-    'xtick.labelsize': 14,
-    'ytick.labelsize': 14,
+    'font.size': 10,
+    'axes.labelsize': 11,
+    'axes.titlesize': 12,
+    'legend.fontsize': 9,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9,
     'axes.linewidth': 1.0,
     'axes.spines.top': False,
     'axes.spines.right': False,
@@ -340,155 +341,10 @@ def plot_comprehensive_basin_comparison(all_basin_data, save_path):
     print(f"Saved: {save_path}")
     plt.close()
 
-def plot_subplot_compact_count_error(all_basin_data, save_path):
-    """Subplot (a): TC Count MAE Line Chart"""
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    
-    for model in MODEL_ORDER:
-        count_vals = [all_basin_data[model][b]['count_mae'] for b in BASIN_ORDER]
-        ax.plot(range(len(BASIN_ORDER)), count_vals, 'o-', linewidth=2.5, markersize=10,
-                label=MODEL_CONFIG[model]['name'], color=MODEL_CONFIG[model]['color'],
-                marker=MODEL_CONFIG[model]['marker'], markeredgecolor='black', markeredgewidth=0.5)
-    
-    ax.fill_between(range(len(BASIN_ORDER)), 
-                     [all_basin_data['proposed'][b]['count_mae'] for b in BASIN_ORDER],
-                     alpha=0.2, color=MODEL_CONFIG['proposed']['color'])
-    
-    ax.set_xticks(range(len(BASIN_ORDER)))
-    ax.set_xticklabels([BASIN_INFO[b]['name'] for b in BASIN_ORDER], rotation=45, ha='right')
-    ax.set_ylabel('TC Count MAE', fontsize=14)
-    # ax.set_title('(a) TC Count Error Across Basins', fontweight='bold')
-    ax.legend(loc='upper right', fontsize=14)
-    ax.grid(True, alpha=0.3, linestyle='--')
-    # Auto-adjust ylim
-    all_count_mae = [all_basin_data[m][b]['count_mae'] for m in MODEL_ORDER for b in BASIN_ORDER]
-    ax.set_ylim(0, max(all_count_mae) * 1.15 if all_count_mae else 1)
-    
-    plt.tight_layout()
-    plt.savefig(save_path, facecolor='white', bbox_inches='tight')
-    plt.savefig(save_path.replace('.png', '.pdf'), facecolor='white', bbox_inches='tight')
-    print(f"Saved: {save_path}")
-    plt.close()
-
-def plot_subplot_compact_f1_heatmap(all_basin_data, save_path):
-    """Subplot (b): F1 Heatmap"""
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    f1_matrix = np.array([[all_basin_data[m][b]['f1'] * 100 for b in BASIN_ORDER] for m in MODEL_ORDER])
-    
-    im = ax.imshow(f1_matrix, cmap='RdYlGn', aspect='auto', vmin=50, vmax=100)
-    ax.set_xticks(range(len(BASIN_ORDER)))
-    ax.set_xticklabels([BASIN_INFO[b]['name'] for b in BASIN_ORDER], rotation=45, ha='right')
-    ax.set_yticks(range(len(MODEL_ORDER)))
-    ax.set_yticklabels([MODEL_CONFIG[m]['name'] for m in MODEL_ORDER])
-    
-    for i in range(len(MODEL_ORDER)):
-        for j in range(len(BASIN_ORDER)):
-            val = f1_matrix[i, j]
-            color = 'white' if val < 70 else 'black'
-            ax.text(j, i, f'{val:.1f}', ha='center', va='center', fontsize=14,
-                    color=color, fontweight='bold')
-    
-    # Add best marker
-    for j in range(len(BASIN_ORDER)):
-        best_i = np.argmax(f1_matrix[:, j])
-        ax.add_patch(Rectangle((j-0.5, best_i-0.5), 1, 1, fill=False,
-                                edgecolor='gold', linewidth=3))
-    
-    cbar = plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
-    cbar.set_label('F1 Score (%)', fontsize=14)
-    # ax.set_title('(b) Detection F1', fontweight='bold', pad=10)
-    
-    # Add legend for gold boxes
-    legend_elements = [Patch(facecolor='none', edgecolor='gold', linewidth=2, label='Best in Basin')]
-    ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
-    
-    plt.tight_layout()
-    plt.savefig(save_path, facecolor='white', bbox_inches='tight')
-    plt.savefig(save_path.replace('.png', '.pdf'), facecolor='white', bbox_inches='tight')
-    print(f"Saved: {save_path}")
-    plt.close()
-
-def plot_subplot_compact_position_mae_radar(all_basin_data, save_path):
-    """Subplot (c): Position MAE Radar Chart"""
-    fig, ax = plt.subplots(figsize=(7, 5.5), subplot_kw=dict(polar=True))
-    
-    categories = [BASIN_INFO[b]['name'] for b in BASIN_ORDER]
-    N = len(categories)
-    angles = [n / float(N) * 2 * np.pi for n in range(N)]
-    angles += angles[:1]
-    
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(categories, fontsize=14)
-    
-    # Plot raw Position MAE values (lower is better)
-    for model in MODEL_ORDER:
-        mae_vals = [all_basin_data[model][b]['pos_mae'] for b in BASIN_ORDER]
-        mae_vals += mae_vals[:1]
-        ax.plot(angles, mae_vals, 'o-', linewidth=2, label=MODEL_CONFIG[model]['name'],
-                color=MODEL_CONFIG[model]['color'], markersize=6)
-        ax.fill(angles, mae_vals, alpha=0.1, color=MODEL_CONFIG[model]['color'])
-    
-    # Auto-adjust ylim based on data
-    all_pos_mae = [all_basin_data[m][b]['pos_mae'] for m in MODEL_ORDER for b in BASIN_ORDER]
-    max_val = max(all_pos_mae) if all_pos_mae else 200
-    ax.set_ylim(0, max_val * 1.1)
-    # ax.set_title('(c) Position MAE', fontweight='bold', y=1.08)
-    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.15), fontsize=13)
-    
-    plt.tight_layout()
-    plt.savefig(save_path, facecolor='white', bbox_inches='tight')
-    plt.savefig(save_path.replace('.png', '.pdf'), facecolor='white', bbox_inches='tight')
-    print(f"Saved: {save_path}")
-    plt.close()
-
-def plot_subplot_compact_improvement(all_basin_data, save_path):
-    """Subplot (d): Proposed Position MAE Improvement by Basin"""
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    
-    basins_short = [BASIN_INFO[b]['name'] for b in BASIN_ORDER]
-    other_models = MODEL_ORDER[1:]
-    x = np.arange(len(other_models))
-    width = 0.12
-    colors_basin = ['#E64B35', '#00A087', '#4DBBD5', '#3C5488', '#F39B7F', '#8491B4']
-    
-    all_improvements = []
-    for i, basin in enumerate(BASIN_ORDER):
-        proposed_mae = all_basin_data['proposed'][basin]['pos_mae']
-        improvements = []
-        for model in other_models:
-            other_mae = all_basin_data[model][basin]['pos_mae']
-            imp = (other_mae - proposed_mae) / other_mae * 100 if other_mae > 0 else 0
-            improvements.append(imp)
-        all_improvements.extend(improvements)
-        
-        offset = (i - 2.5) * width
-        ax.bar(x + offset, improvements, width, label=basins_short[i], color=colors_basin[i],
-               edgecolor='black', linewidth=0.5)
-    
-    ax.axhline(0, color='black', linewidth=0.5)
-    ax.set_ylabel('Improvement (%)')
-    # ax.set_title('(d) Proposed Position MAE Improvement by Basin', fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels([MODEL_CONFIG[m]['name'] for m in other_models], rotation=30, ha='right')
-    ax.legend(loc='upper right', ncol=3, fontsize=7)
-    
-    # Auto-adjust ylim
-    max_val = max(all_improvements) if all_improvements else 50
-    ax.set_ylim(0, max(50, max_val * 1.1))
-    ax.grid(True, axis='y', alpha=0.3, linestyle='--')
-    
-    plt.tight_layout()
-    plt.savefig(save_path, facecolor='white', bbox_inches='tight')
-    plt.savefig(save_path.replace('.png', '.pdf'), facecolor='white', bbox_inches='tight')
-    print(f"Saved: {save_path}")
-    plt.close()
-
 def plot_compact_comparison(all_basin_data, save_path):
-    """Create a compact 2×2 four-panel high-impact figure."""
-    fig = plt.figure(figsize=(16, 12))
-    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.25)
+    """Create a compact high-impact figure."""
+    fig = plt.figure(figsize=(14, 11))
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
     
     # ========== Panel (a): TC Count MAE Line Chart ==========
     ax1 = fig.add_subplot(gs[0, 0])
@@ -509,6 +365,7 @@ def plot_compact_comparison(all_basin_data, save_path):
     ax1.set_title('(a) TC Count Error Across Basins', fontweight='bold')
     ax1.legend(loc='upper right', fontsize=9)
     ax1.grid(True, alpha=0.3, linestyle='--')
+    # Auto-adjust ylim
     all_count_mae = [all_basin_data[m][b]['count_mae'] for m in MODEL_ORDER for b in BASIN_ORDER]
     ax1.set_ylim(0, max(all_count_mae) * 1.15 if all_count_mae else 1)
     
@@ -529,6 +386,7 @@ def plot_compact_comparison(all_basin_data, save_path):
             ax2.text(j, i, f'{val:.1f}', ha='center', va='center', fontsize=10,
                     color=color, fontweight='bold')
     
+    # Add best marker
     for j in range(len(BASIN_ORDER)):
         best_i = np.argmax(f1_matrix[:, j])
         ax2.add_patch(Rectangle((j-0.5, best_i-0.5), 1, 1, fill=False,
@@ -536,9 +394,7 @@ def plot_compact_comparison(all_basin_data, save_path):
     
     cbar2 = plt.colorbar(im2, ax=ax2, shrink=0.8, pad=0.02)
     cbar2.set_label('F1 Score (%)', fontsize=10)
-    ax2.set_title('(b) Detection F1 Heatmap', fontweight='bold', pad=10)
-    legend_elements = [Patch(facecolor='none', edgecolor='gold', linewidth=2, label='Best in Basin')]
-    ax2.legend(handles=legend_elements, loc='lower right', fontsize=9)
+    ax2.set_title('(b) Detection F1', fontweight='bold', pad=10)
     
     # ========== Panel (c): Position MAE Radar Chart ==========
     ax3 = fig.add_subplot(gs[1, 0], polar=True)
@@ -551,8 +407,9 @@ def plot_compact_comparison(all_basin_data, save_path):
     ax3.set_theta_offset(np.pi / 2)
     ax3.set_theta_direction(-1)
     ax3.set_xticks(angles[:-1])
-    ax3.set_xticklabels(categories, fontsize=10)
+    ax3.set_xticklabels(categories, fontsize=9)
     
+    # Plot raw Position MAE values (lower is better)
     for model in MODEL_ORDER:
         mae_vals = [all_basin_data[model][b]['pos_mae'] for b in BASIN_ORDER]
         mae_vals += mae_vals[:1]
@@ -560,13 +417,14 @@ def plot_compact_comparison(all_basin_data, save_path):
                 color=MODEL_CONFIG[model]['color'], markersize=6)
         ax3.fill(angles, mae_vals, alpha=0.1, color=MODEL_CONFIG[model]['color'])
     
+    # Auto-adjust ylim based on data
     all_pos_mae = [all_basin_data[m][b]['pos_mae'] for m in MODEL_ORDER for b in BASIN_ORDER]
     max_val = max(all_pos_mae) if all_pos_mae else 200
     ax3.set_ylim(0, max_val * 1.1)
-    ax3.set_title('(c) Position MAE Radar', fontweight='bold', y=1.08)
-    ax3.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), fontsize=9)
+    ax3.set_title('(c) Position MAE', fontweight='bold', y=1.08)
+    ax3.legend(loc='upper right', bbox_to_anchor=(1.3, 1.15), fontsize=8)
     
-    # ========== Panel (d): Improvement Bar (Proposed vs Others) ==========
+    # ========== Panel (d): Basin-wise Improvement (like Panel g in full) ==========
     ax4 = fig.add_subplot(gs[1, 1])
     
     basins_short = [BASIN_INFO[b]['name'] for b in BASIN_ORDER]
@@ -591,14 +449,24 @@ def plot_compact_comparison(all_basin_data, save_path):
     
     ax4.axhline(0, color='black', linewidth=0.5)
     ax4.set_ylabel('Improvement (%)')
-    ax4.set_title('(d) TCG-LLM Position MAE Improvement', fontweight='bold')
+    ax4.set_title('(d) Proposed Position MAE Improvement by Basin', fontweight='bold')
     ax4.set_xticks(x)
     ax4.set_xticklabels([MODEL_CONFIG[m]['name'] for m in other_models], rotation=30, ha='right')
-    ax4.legend(loc='upper right', ncol=3, fontsize=8)
-    max_val_imp = max(all_improvements) if all_improvements else 50
-    ax4.set_ylim(0, max(50, max_val_imp * 1.1))
+    ax4.legend(loc='upper right', ncol=3, fontsize=7)
+    
+    # Auto-adjust ylim
+    max_val = max(all_improvements) if all_improvements else 50
+    ax4.set_ylim(0, max(50, max_val * 1.1))
     ax4.grid(True, axis='y', alpha=0.3, linestyle='--')
     
+    # Add legend for gold boxes (on Panel b - F1 Heatmap)
+    legend_elements = [Patch(facecolor='none', edgecolor='gold', linewidth=2, label='Best in Basin')]
+    ax2.legend(handles=legend_elements, loc='lower right', fontsize=8)
+    
+    fig.suptitle('Comprehensive Basin-wise Performance: Proposed vs Baseline Models',
+                fontsize=14, fontweight='bold', y=0.98)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(save_path, facecolor='white', bbox_inches='tight')
     plt.savefig(save_path.replace('.png', '.pdf'), facecolor='white', bbox_inches='tight')
     print(f"Saved: {save_path}")
@@ -606,7 +474,7 @@ def plot_compact_comparison(all_basin_data, save_path):
 
 # ==================== Main ====================
 def main():
-    base_path = Path(r"figures")
+    base_path = Path(r"D:\Desktop\autodl")
     
     print("Loading all model data...")
     all_basin_data = {}
@@ -623,19 +491,12 @@ def main():
     # Figure 2: Compact 4-panel high-impact
     plot_compact_comparison(all_basin_data, str(base_path / "fig_all_models_basin_compact.png"))
     
-    # Individual subplots from compact comparison
-    print("\nGenerating individual compact subplots...")
-    plot_subplot_compact_count_error(all_basin_data, str(base_path / "fig_compact_subplot_count_error.png"))
-    plot_subplot_compact_f1_heatmap(all_basin_data, str(base_path / "fig_compact_subplot_f1_heatmap.png"))
-    plot_subplot_compact_position_mae_radar(all_basin_data, str(base_path / "fig_compact_subplot_position_mae_radar.png"))
-    plot_subplot_compact_improvement(all_basin_data, str(base_path / "fig_compact_subplot_improvement.png"))
-    
     print("\n" + "="*60)
     print("All comprehensive figures saved!")
+    print("Recommended: fig_all_models_basin_compact.pdf")
     print("="*60)
 
 if __name__ == "__main__":
     main()
-
 
 

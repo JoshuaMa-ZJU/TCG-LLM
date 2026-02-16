@@ -12,43 +12,35 @@ from scipy.optimize import linear_sum_assignment
 from collections import defaultdict
 
 # ==================== Configuration ====================
-# Matching threshold (km) - TCs within this distance are considered matched
-MATCH_DISTANCE_THRESHOLD = 500  # 修改此值调整匹配阈值（单位：km）
-
-# Distance error cap for MAE/RMSE calculation (km)
-# Set to None to include all errors, or set a value to cap outliers
-DISTANCE_ERROR_CAP = None  # 例如设置为 200，则超过200km的误差会被截断为200km
-# DISTANCE_ERROR_CAP = 200  # 取消注释启用截断
-
-# Nature journal color palette
 NATURE_COLORS = {
     'proposed': '#E64B35',   # Red - Our method (highlighted)
     'claude': '#4DBBD5',     # Cyan
     'gpt': '#00A087',        # Teal
     'gemini': '#3C5488',     # Navy blue
-    'weytcnet': '#F39B7F',   # Coral/Orange
+    'maskrcnn': '#F39B7F',   # Coral/Orange
 }
 
 MODEL_NAMES = {
-    'proposed': 'Proposed',
+    'proposed': 'TCG-LLM',
     'claude': 'Gemini-3',
     'gpt': 'GPT-5.2',
     'gemini': 'Claude-4.5',
-    'weytcnet': 'WEY-TCNet',
+    'maskrcnn': 'Mask-RCNN',
 }
 
 # Set Times New Roman font
 plt.rcParams['font.family'] = 'Times New Roman'
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = 14
 plt.rcParams['axes.labelsize'] = 14
 plt.rcParams['axes.titlesize'] = 16
-plt.rcParams['legend.fontsize'] = 11
-plt.rcParams['xtick.labelsize'] = 12
-plt.rcParams['ytick.labelsize'] = 12
+plt.rcParams['legend.fontsize'] = 14
+plt.rcParams['xtick.labelsize'] = 14
+plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['axes.linewidth'] = 1.2
 plt.rcParams['axes.spines.top'] = False
 plt.rcParams['axes.spines.right'] = False
-
+MATCH_DISTANCE_THRESHOLD = 500  
+DISTANCE_ERROR_CAP = None  
 # ==================== Data Loading ====================
 def load_jsonl(filepath):
     """Load JSONL file and return list of records."""
@@ -149,6 +141,12 @@ def calculate_metrics(records):
     recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
     
+    # Calculate False Alarm Rate (FAR) and Miss Rate (MR)
+    # FAR = FP / (TP + FP) = 1 - Precision
+    false_alarm_rate = false_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    # MR = FN / (TP + FN) = 1 - Recall
+    miss_rate = false_negatives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+    
     return {
         'count_mae': np.mean(np.abs(count_errors)),
         'count_rmse': np.sqrt(np.mean(np.array(count_errors)**2)),
@@ -163,6 +161,8 @@ def calculate_metrics(records):
         'precision': precision,
         'recall': recall,
         'f1': f1,
+        'false_alarm_rate': false_alarm_rate,
+        'miss_rate': miss_rate,
     }
 
 # ==================== Visualization ====================
@@ -170,7 +170,7 @@ def plot_bar_comparison(all_metrics, save_path):
     """Create bar chart comparing key metrics across models."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
     
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'weytcnet']
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
     x = np.arange(len(models))
     width = 0.6
     
@@ -180,7 +180,6 @@ def plot_bar_comparison(all_metrics, save_path):
     colors = [NATURE_COLORS[m] for m in models]
     bars1 = ax1.bar(x, values, width, color=colors, edgecolor='black', linewidth=0.8)
     ax1.set_ylabel('MAE (count)')
-    ax1.set_title('(a) TC Count Error', fontweight='bold')
     ax1.set_xticks(x)
     ax1.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax1.set_ylim(0, max(values) * 1.2)
@@ -195,7 +194,6 @@ def plot_bar_comparison(all_metrics, save_path):
     values = [all_metrics[m]['distance_mae'] for m in models]
     bars2 = ax2.bar(x, values, width, color=colors, edgecolor='black', linewidth=0.8)
     ax2.set_ylabel('MAE (km)')
-    ax2.set_title('(b) Position Error', fontweight='bold')
     ax2.set_xticks(x)
     ax2.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax2.set_ylim(0, max(values) * 1.2)
@@ -209,7 +207,6 @@ def plot_bar_comparison(all_metrics, save_path):
     values = [all_metrics[m]['f1'] * 100 for m in models]
     bars3 = ax3.bar(x, values, width, color=colors, edgecolor='black', linewidth=0.8)
     ax3.set_ylabel('F1 Score (%)')
-    ax3.set_title('(c) Detection Performance', fontweight='bold')
     ax3.set_xticks(x)
     ax3.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax3.set_ylim(0, 105)
@@ -228,39 +225,260 @@ def plot_boxplot_comparison(all_metrics, save_path):
     """Create boxplot for position error distribution."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    models = ['proposed', 'gpt', 'gemini', 'claude', 'weytcnet']
+    models = ['proposed', 'gpt', 'gemini', 'claude', 'maskrcnn']
     
     # Panel (a): Latitude Error Distribution
     ax1 = axes[0]
     lat_data = [all_metrics[m]['lat_errors'] for m in models]
-    bp1 = ax1.boxplot(lat_data, patch_artist=True, widths=0.6,
-                      medianprops=dict(color='black', linewidth=1.5),
-                      flierprops=dict(marker='o', markerfacecolor='gray', markersize=3, alpha=0.5))
+    parts1 = ax1.violinplot(lat_data, positions=range(1, len(models)+1), widths=0.7,
+                           showmeans=True, showmedians=True, showextrema=False)
     
-    for patch, model in zip(bp1['boxes'], models):
-        patch.set_facecolor(NATURE_COLORS[model])
+    for i, pc in enumerate(parts1['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts1['cmeans'].set_color('black')
+    parts1['cmeans'].set_linewidth(1.5)
+    parts1['cmedians'].set_color('white')
+    parts1['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp1 = ax1.boxplot(lat_data, positions=range(1, len(models)+1), widths=0.15,
+                     patch_artist=True, showfliers=False)
+    for patch in bp1['boxes']:
+        patch.set_facecolor('white')
         patch.set_alpha(0.8)
-        patch.set_edgecolor('black')
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp1[element], color='black', linewidth=1)
     
     ax1.set_ylabel('Latitude Error (°)')
-    ax1.set_title('(a) Latitude Error Distribution', fontweight='bold')
+    ax1.set_xticks(range(1, len(models)+1))
     ax1.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     
     # Panel (b): Longitude Error Distribution
     ax2 = axes[1]
     lon_data = [all_metrics[m]['lon_errors'] for m in models]
-    bp2 = ax2.boxplot(lon_data, patch_artist=True, widths=0.6,
-                      medianprops=dict(color='black', linewidth=1.5),
-                      flierprops=dict(marker='o', markerfacecolor='gray', markersize=3, alpha=0.5))
+    parts2 = ax2.violinplot(lon_data, positions=range(1, len(models)+1), widths=0.7,
+                           showmeans=True, showmedians=True, showextrema=False)
     
-    for patch, model in zip(bp2['boxes'], models):
-        patch.set_facecolor(NATURE_COLORS[model])
+    for i, pc in enumerate(parts2['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts2['cmeans'].set_color('black')
+    parts2['cmeans'].set_linewidth(1.5)
+    parts2['cmedians'].set_color('white')
+    parts2['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp2 = ax2.boxplot(lon_data, positions=range(1, len(models)+1), widths=0.15,
+                     patch_artist=True, showfliers=False)
+    for patch in bp2['boxes']:
+        patch.set_facecolor('white')
         patch.set_alpha(0.8)
-        patch.set_edgecolor('black')
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp2[element], color='black', linewidth=1)
     
     ax2.set_ylabel('Longitude Error (°)')
-    ax2.set_title('(b) Longitude Error Distribution', fontweight='bold')
+    ax2.set_xticks(range(1, len(models)+1))
     ax2.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_count_error(all_metrics, save_path):
+    """Subplot (a): TC Count MAE & RMSE"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    colors = [NATURE_COLORS[m] for m in models]
+    x_grouped = np.arange(len(models))
+    width_g = 0.35
+    
+    mae_vals = [all_metrics[m]['count_mae'] for m in models]
+    rmse_vals = [all_metrics[m]['count_rmse'] for m in models]
+    
+    bars1 = ax.bar(x_grouped - width_g/2, mae_vals, width_g, label='MAE', 
+                    color=colors, edgecolor='black', linewidth=0.8, alpha=0.9)
+    bars2 = ax.bar(x_grouped + width_g/2, rmse_vals, width_g, label='RMSE',
+                    color=colors, edgecolor='black', linewidth=0.8, alpha=0.5, hatch='///')
+    
+    ax.set_ylabel('Error (count)')
+    ax.set_xticks(x_grouped)
+    ax.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    ax.legend(loc='upper right', framealpha=0.9)
+    ax.set_ylim(0, max(max(mae_vals), max(rmse_vals)) * 1.25)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_position_error(all_metrics, save_path):
+    """Subplot (b): Position Distance Error"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    colors = [NATURE_COLORS[m] for m in models]
+    x_grouped = np.arange(len(models))
+    width_g = 0.35
+    
+    dist_mae = [all_metrics[m]['distance_mae'] for m in models]
+    dist_rmse = [all_metrics[m]['distance_rmse'] for m in models]
+    
+    bars3 = ax.bar(x_grouped - width_g/2, dist_mae, width_g, label='MAE',
+                    color=colors, edgecolor='black', linewidth=0.8, alpha=0.9)
+    bars4 = ax.bar(x_grouped + width_g/2, dist_rmse, width_g, label='RMSE',
+                    color=colors, edgecolor='black', linewidth=0.8, alpha=0.5, hatch='///')
+    
+    ax.set_ylabel('Distance Error (km)')
+    ax.set_xticks(x_grouped)
+    ax.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    ax.legend(loc='upper right', framealpha=0.9)
+    ax.set_ylim(0, max(max(dist_mae), max(dist_rmse)) * 1.25)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_detection_metrics(all_metrics, save_path):
+    """Subplot (c): Precision, Recall, F1"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    x = np.arange(len(models))
+    width_t = 0.25
+    
+    precision_vals = [all_metrics[m]['precision'] * 100 for m in models]
+    recall_vals = [all_metrics[m]['recall'] * 100 for m in models]
+    f1_vals = [all_metrics[m]['f1'] * 100 for m in models]
+    
+    bars5 = ax.bar(x - width_t, precision_vals, width_t, label='Precision',
+                    color='#E64B35', edgecolor='black', linewidth=0.8)
+    bars6 = ax.bar(x, recall_vals, width_t, label='Recall',
+                    color='#4DBBD5', edgecolor='black', linewidth=0.8)
+    bars7 = ax.bar(x + width_t, f1_vals, width_t, label='F1 Score',
+                    color='#00A087', edgecolor='black', linewidth=0.8)
+    
+    ax.set_ylabel('Score (%)')
+    ax.set_xticks(x)
+    ax.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    ax.legend(loc='lower right', framealpha=0.9)
+    ax.set_ylim(0, 105)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_latitude_error(all_metrics, save_path):
+    """Subplot (d): Latitude Error Boxplot"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    
+    lat_data = [all_metrics[m]['lat_errors'] for m in models]
+    parts = ax.violinplot(lat_data, positions=range(1, len(models)+1), widths=0.7,
+                         showmeans=True, showmedians=True, showextrema=False)
+    
+    for i, pc in enumerate(parts['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts['cmeans'].set_color('black')
+    parts['cmeans'].set_linewidth(1.5)
+    parts['cmedians'].set_color('white')
+    parts['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp = ax.boxplot(lat_data, positions=range(1, len(models)+1), widths=0.15,
+                   patch_artist=True, showfliers=False)
+    for patch in bp['boxes']:
+        patch.set_facecolor('white')
+        patch.set_alpha(0.8)
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp[element], color='black', linewidth=1)
+    
+    ax.set_ylabel('Latitude Error (°)')
+    ax.set_xticks(range(1, len(models)+1))
+    ax.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_longitude_error(all_metrics, save_path):
+    """Subplot (e): Longitude Error Boxplot"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    
+    lon_data = [all_metrics[m]['lon_errors'] for m in models]
+    parts = ax.violinplot(lon_data, positions=range(1, len(models)+1), widths=0.7,
+                         showmeans=True, showmedians=True, showextrema=False)
+    
+    for i, pc in enumerate(parts['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts['cmeans'].set_color('black')
+    parts['cmeans'].set_linewidth(1.5)
+    parts['cmedians'].set_color('white')
+    parts['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp = ax.boxplot(lon_data, positions=range(1, len(models)+1), widths=0.15,
+                   patch_artist=True, showfliers=False)
+    for patch in bp['boxes']:
+        patch.set_facecolor('white')
+        patch.set_alpha(0.8)
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp[element], color='black', linewidth=1)
+    
+    ax.set_ylabel('Longitude Error (°)')
+    ax.set_xticks(range(1, len(models)+1))
+    ax.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
+    print(f"Saved: {save_path}")
+    plt.close()
+
+def plot_subplot_cdf(all_metrics, save_path):
+    """Subplot (f): Distance Error CDF"""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    
+    for model in models:
+        errors = sorted(all_metrics[model]['distance_errors'])
+        if errors:
+            cdf = np.arange(1, len(errors) + 1) / len(errors)
+            if model == 'proposed':
+                ax.plot(errors, cdf, label=MODEL_NAMES[model], color=NATURE_COLORS[model],
+                        linewidth=3.2, alpha=1.0, zorder=5)
+            else:
+                ax.plot(errors, cdf, label=MODEL_NAMES[model], color=NATURE_COLORS[model], 
+                        linewidth=2, alpha=0.9)
+    
+    ax.set_xlabel('Position Error (km)')
+    ax.set_ylabel('Cumulative Probability')
+    ax.legend(loc='lower right', framealpha=0.9)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_xlim(0, None)
+    ax.set_ylim(0, 1.02)
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
@@ -275,7 +493,7 @@ def plot_comprehensive_comparison(all_metrics, save_path):
     # Create grid
     gs = fig.add_gridspec(2, 3, hspace=0.35, wspace=0.3)
     
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'weytcnet']
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
     colors = [NATURE_COLORS[m] for m in models]
     x = np.arange(len(models))
     width = 0.6
@@ -293,7 +511,6 @@ def plot_comprehensive_comparison(all_metrics, save_path):
                     color=colors, edgecolor='black', linewidth=0.8, alpha=0.5, hatch='///')
     
     ax1.set_ylabel('Error (count)')
-    ax1.set_title('(a) TC Count Prediction Error', fontweight='bold', pad=10)
     ax1.set_xticks(x_grouped)
     ax1.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax1.legend(loc='upper right', framealpha=0.9)
@@ -310,7 +527,6 @@ def plot_comprehensive_comparison(all_metrics, save_path):
                     color=colors, edgecolor='black', linewidth=0.8, alpha=0.5, hatch='///')
     
     ax2.set_ylabel('Distance Error (km)')
-    ax2.set_title('(b) Position Error (Haversine Distance)', fontweight='bold', pad=10)
     ax2.set_xticks(x_grouped)
     ax2.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax2.legend(loc='upper right', framealpha=0.9)
@@ -331,44 +547,69 @@ def plot_comprehensive_comparison(all_metrics, save_path):
                     color='#00A087', edgecolor='black', linewidth=0.8)
     
     ax3.set_ylabel('Score (%)')
-    ax3.set_title('(c) Detection Performance Metrics', fontweight='bold', pad=10)
     ax3.set_xticks(x)
     ax3.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     ax3.legend(loc='lower right', framealpha=0.9)
     ax3.set_ylim(0, 105)
     
-    # (d) Latitude Error Boxplot
+    # (d) Latitude Error Violin Plot
     ax4 = fig.add_subplot(gs[1, 0])
     lat_data = [all_metrics[m]['lat_errors'] for m in models]
-    bp1 = ax4.boxplot(lat_data, patch_artist=True, widths=0.6,
-                      medianprops=dict(color='black', linewidth=1.5),
-                      flierprops=dict(marker='o', markerfacecolor='gray', markersize=2, alpha=0.3),
-                      showfliers=True)
+    parts1 = ax4.violinplot(lat_data, positions=range(1, len(models)+1), widths=0.7,
+                           showmeans=True, showmedians=True, showextrema=False)
     
-    for patch, model in zip(bp1['boxes'], models):
-        patch.set_facecolor(NATURE_COLORS[model])
+    for i, pc in enumerate(parts1['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts1['cmeans'].set_color('black')
+    parts1['cmeans'].set_linewidth(1.5)
+    parts1['cmedians'].set_color('white')
+    parts1['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp1 = ax4.boxplot(lat_data, positions=range(1, len(models)+1), widths=0.15,
+                     patch_artist=True, showfliers=False)
+    for patch in bp1['boxes']:
+        patch.set_facecolor('white')
         patch.set_alpha(0.8)
-        patch.set_edgecolor('black')
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp1[element], color='black', linewidth=1)
     
     ax4.set_ylabel('Latitude Error (°)')
-    ax4.set_title('(d) Latitude Error Distribution', fontweight='bold', pad=10)
+    ax4.set_xticks(range(1, len(models)+1))
     ax4.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     
-    # (e) Longitude Error Boxplot
+    # (e) Longitude Error Violin Plot
     ax5 = fig.add_subplot(gs[1, 1])
     lon_data = [all_metrics[m]['lon_errors'] for m in models]
-    bp2 = ax5.boxplot(lon_data, patch_artist=True, widths=0.6,
-                      medianprops=dict(color='black', linewidth=1.5),
-                      flierprops=dict(marker='o', markerfacecolor='gray', markersize=2, alpha=0.3),
-                      showfliers=True)
+    parts2 = ax5.violinplot(lon_data, positions=range(1, len(models)+1), widths=0.7,
+                           showmeans=True, showmedians=True, showextrema=False)
     
-    for patch, model in zip(bp2['boxes'], models):
-        patch.set_facecolor(NATURE_COLORS[model])
+    for i, pc in enumerate(parts2['bodies']):
+        pc.set_facecolor(NATURE_COLORS[models[i]])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.7)
+        pc.set_linewidth(0.8)
+    
+    parts2['cmeans'].set_color('black')
+    parts2['cmeans'].set_linewidth(1.5)
+    parts2['cmedians'].set_color('white')
+    parts2['cmedians'].set_linewidth(1.5)
+    
+    # Add box plot on top for quartiles
+    bp2 = ax5.boxplot(lon_data, positions=range(1, len(models)+1), widths=0.15,
+                     patch_artist=True, showfliers=False)
+    for patch in bp2['boxes']:
+        patch.set_facecolor('white')
         patch.set_alpha(0.8)
-        patch.set_edgecolor('black')
+    for element in ['whiskers', 'caps', 'medians']:
+        plt.setp(bp2[element], color='black', linewidth=1)
     
     ax5.set_ylabel('Longitude Error (°)')
-    ax5.set_title('(e) Longitude Error Distribution', fontweight='bold', pad=10)
+    ax5.set_xticks(range(1, len(models)+1))
     ax5.set_xticklabels([MODEL_NAMES[m] for m in models], rotation=30, ha='right')
     
     # (f) Distance Error CDF
@@ -377,12 +618,15 @@ def plot_comprehensive_comparison(all_metrics, save_path):
         errors = sorted(all_metrics[model]['distance_errors'])
         if errors:
             cdf = np.arange(1, len(errors) + 1) / len(errors)
-            ax6.plot(errors, cdf, label=MODEL_NAMES[model], color=NATURE_COLORS[model], 
-                    linewidth=2, alpha=0.9)
+            if model == 'proposed':
+                ax6.plot(errors, cdf, label=MODEL_NAMES[model], color=NATURE_COLORS[model],
+                        linewidth=3.2, alpha=1.0, zorder=5)
+            else:
+                ax6.plot(errors, cdf, label=MODEL_NAMES[model], color=NATURE_COLORS[model], 
+                        linewidth=2, alpha=0.9)
     
     ax6.set_xlabel('Position Error (km)')
     ax6.set_ylabel('Cumulative Probability')
-    ax6.set_title('(f) Position Error CDF', fontweight='bold', pad=10)
     ax6.legend(loc='lower right', framealpha=0.9)
     ax6.grid(True, alpha=0.3, linestyle='--')
     ax6.set_xlim(0, None)
@@ -397,7 +641,7 @@ def plot_radar_comparison(all_metrics, save_path):
     """Create radar chart for multi-dimensional comparison."""
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
     
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'weytcnet']
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
     
     # Metrics to compare (normalized, higher is better)
     categories = ['F1 Score', 'Precision', 'Recall', 'Count Acc.', 'Position Acc.']
@@ -437,7 +681,6 @@ def plot_radar_comparison(all_metrics, save_path):
     ax.set_ylim(0, 1.1)
     ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), framealpha=0.9)
     
-    plt.title('Multi-dimensional Performance Comparison', fontsize=14, fontweight='bold', y=1.08)
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.savefig(save_path.replace('.png', '.pdf'), bbox_inches='tight', facecolor='white')
     print(f"Saved: {save_path}")
@@ -445,36 +688,36 @@ def plot_radar_comparison(all_metrics, save_path):
 
 def print_metrics_table(all_metrics):
     """Print metrics in table format for paper."""
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'weytcnet']
+    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
     
     print("\n" + "="*90)
     print("TABLE: Quantitative Comparison of TC Detection and Localization Performance")
     print("="*90)
-    print(f"{'Model':<12} {'Count MAE':>10} {'Count RMSE':>12} {'Dist MAE':>10} {'Dist RMSE':>11} {'Precision':>10} {'Recall':>8} {'F1':>8}")
+    print(f"{'Model':<12} {'Count MAE':>10} {'Count RMSE':>12} {'Dist MAE':>10} {'Dist RMSE':>11} {'FAR':>8} {'MR':>8} {'F1':>8}")
     print("-"*90)
     
     for model in models:
         m = all_metrics[model]
         print(f"{MODEL_NAMES[model]:<12} {m['count_mae']:>10.4f} {m['count_rmse']:>12.4f} "
               f"{m['distance_mae']:>10.2f} {m['distance_rmse']:>11.2f} "
-              f"{m['precision']*100:>9.2f}% {m['recall']*100:>7.2f}% {m['f1']*100:>7.2f}%")
+              f"{m['false_alarm_rate']*100:>7.2f}% {m['miss_rate']*100:>7.2f}% {m['f1']*100:>7.2f}%")
     
     print("="*90)
-    print("Note: Count MAE/RMSE in TC count; Distance MAE/RMSE in km")
+    print("Note: Count MAE/RMSE in TC count; Distance MAE/RMSE in km; FAR = False Alarm Rate; MR = Miss Rate")
     print()
 
 # ==================== Main ====================
 def main():
-    base_path = Path(r"D:\Desktop\autodl")
+    base_path = Path(r"figures")
     
     # Load all model results
     print("Loading data...")
     model_files = {
-        'proposed': 'proposed.jsonl',
+        'proposed': 'TCG-LLM.jsonl',
         'claude': 'claude.jsonl',
         'gpt': 'gpt.jsonl',
-        'gemini': 'qwen235b.jsonl',
-        'weytcnet': 'weytcnet.jsonl',
+        'gemini': 'gemini.jsonl',
+        'maskrcnn': 'maskrcnn.jsonl',
     }
     
     all_data = {}
@@ -499,19 +742,28 @@ def main():
     print("\nGenerating figures...")
     
     # Figure 1: Simple bar comparison
-    plot_bar_comparison(all_metrics, str(base_path / "fig_error_bars.png"))
+    # plot_bar_comparison(all_metrics, str(base_path / "fig_error_bars.png"))
     
-    # Figure 2: Boxplot comparison
-    plot_boxplot_comparison(all_metrics, str(base_path / "fig_error_boxplot.png"))
+    # # Figure 2: Boxplot comparison
+    # plot_boxplot_comparison(all_metrics, str(base_path / "fig_error_boxplot.png"))
     
-    # Figure 3: Comprehensive comparison (recommended for paper)
+    # Figure 3: Comprehensive comparison 
     plot_comprehensive_comparison(all_metrics, str(base_path / "fig_comprehensive_comparison.png"))
     
     # Figure 4: Radar chart
-    plot_radar_comparison(all_metrics, str(base_path / "fig_radar_comparison.png"))
+    # plot_radar_comparison(all_metrics, str(base_path / "fig_radar_comparison.png"))
+    
+    # Individual subplots from comprehensive comparison
+    # print("\nGenerating individual subplots...")
+    # plot_subplot_count_error(all_metrics, str(base_path / "fig_subplot_count_error.png"))
+    # plot_subplot_position_error(all_metrics, str(base_path / "fig_subplot_position_error.png"))
+    # plot_subplot_detection_metrics(all_metrics, str(base_path / "fig_subplot_detection_metrics.png"))
+    # plot_subplot_latitude_error(all_metrics, str(base_path / "fig_subplot_latitude_error.png"))
+    # plot_subplot_longitude_error(all_metrics, str(base_path / "fig_subplot_longitude_error.png"))
+    # plot_subplot_cdf(all_metrics, str(base_path / "fig_subplot_cdf.png"))
     
     print("\nAll figures saved successfully!")
-    print("Recommended for paper: fig_comprehensive_comparison.pdf")
+
 
 if __name__ == "__main__":
     main()

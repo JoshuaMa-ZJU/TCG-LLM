@@ -198,6 +198,52 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 # Set initial_adapter_path to your SFT output, then:
 python train_GRPO.py
 ```
+```
+
+### 5. `plot_overall.py` — Overall Error Comparison Visualization
+
+Generates publication-ready figures comparing TC detection and localization errors across all models.
+
+**Output figures:**
+- `fig_comprehensive_comparison.png/.pdf` — 2×3 panel figure containing:
+  - (a) TC Count MAE & RMSE bar chart
+  - (b) Position Distance MAE & RMSE bar chart
+  - (c) Precision / Recall / F1 grouped bar chart
+  - (d) Latitude error violin + box plot
+  - (e) Longitude error violin + box plot
+  - (f) Position error CDF curves
+
+**Evaluated metrics:**
+| Metric | Description |
+|--------|-------------|
+| Count MAE / RMSE | TC count prediction error |
+| Distance MAE / RMSE | Haversine distance between matched pred-GT pairs (km) |
+| Precision / Recall / F1 | Detection performance via Hungarian matching |
+| FAR / MR | False Alarm Rate / Miss Rate |
+
+**Usage:**
+
+```bash
+python plot_overall.py
+```
+
+### 6. `plot_basinwise.py` — Basin-wise Performance Comparison
+
+Generates basin-level performance analysis figures across 6 ocean basins (NA, EP, WP, NI, SI, SP).
+
+**Output figures:**
+- `fig_all_models_basin_full.png/.pdf` — 3×3 nine-panel comprehensive figure
+- `fig_all_models_basin_compact.png/.pdf` — 2×2 four-panel compact figure:
+  - (a) TC Count MAE line chart across basins
+  - (b) F1 score heatmap with best-in-basin markers
+  - (c) Position MAE radar chart
+  - (d) TCG-LLM position MAE improvement over baselines
+- Individual subplot exports (`fig_compact_subplot_*.png/.pdf`)
+
+**Usage:**
+
+```bash
+python plot_basinwise.py
 
 ## Training Pipeline
 

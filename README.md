@@ -198,7 +198,6 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 # Set initial_adapter_path to your SFT output, then:
 python train_GRPO.py
 ```
-```
 
 ### 5. `plot_overall.py` — Overall Error Comparison Visualization
 
@@ -244,7 +243,7 @@ Generates basin-level performance analysis figures across 6 ocean basins (NA, EP
 
 ```bash
 python plot_basinwise.py
-
+```
 ## Training Pipeline
 
 ```

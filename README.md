@@ -47,21 +47,21 @@ We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https:
 ```
 TCDLD/
 ├── image/          # Satellite brightness temperature images (.npy)
-│                   #   15,431 files, ~32 GB
+│                   #   15,431 files, ~38 GB
 │                   #   Format: dict{'image': ndarray(H, W), float16}
 │                   #   Typical shape: ~715×1786 (varies by basin)
 │
 ├── gph/            # Geopotential height fields at 6 pressure levels (.npy)
-│                   #   15,431 files, ~15 GB
+│                   #   15,431 files, ~25 GB
 │                   #   Format: ndarray(6, H, W), float16
 │                   #   6 levels: 200, 500, 700, 850, 925, 1000 hPa
 │
 ├── sst/            # Sea surface temperature fields (.npy)
-│                   #   15,431 files, ~2.5 GB
+│                   #   15,431 files, ~15 GB
 │                   #   Format: ndarray(H, W), float16
 │
 ├── label/          # Ground-truth labels from IBTrACS (.npy)
-│                   #   15,431 files, ~5 MB
+│                   #   15,431 files, ~15 GB
 │                   #   Format: dict{
 │                   #     'tc_count': int,
 │                   #     'tc_positions': [(lat, lon), ...],

@@ -1,5 +1,5 @@
 # =============================================================================
-# train_cyclone_detector_gph.py — Physics-aware SFT Training
+# train_SFT.py — Physics-aware SFT Training
 #
 # Supervised fine-tuning (SFT) of Qwen3-VL-8B using QLoRA PEFT for basin-scale
 # tropical cyclogenesis (TCG) detection and localization.  Physics-aware CNN

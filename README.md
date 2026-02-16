@@ -178,10 +178,10 @@ GRPO reinforcement learning with quality-based reward shaping. Loads the SFT ada
 | Component | Weight | Description |
 |-----------|--------|-------------|
 | Format Reward | gate | Valid JSON output check (binary) |
-| Count Reward (Eq. 1) | $w_c = 0.3$ | $r_{count} = 1 - \|n_{pred} - n_{gt}\| / \max(n_{gt}, 1)$ |
-| Position Reward (Eq. 2) | $w_p = 0.3$ | $r_{pos} = \exp(-d / \text{Scale}_{pos})$, Scale_pos = 100 km |
-| Fine-grained Reward (Eq. 3) | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
-| Quality Shaping (Eq. 4–6) | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
+| Count Reward | $w_c = 0.3$ | $r_{count} = 1 - \|n_{pred} - n_{gt}\| / \max(n_{gt}, 1)$ |
+| Position Reward | $w_p = 0.3$ | $r_{pos} = \exp(-d / \text{Scale}_{pos})$, Scale_pos = 100 km |
+| Fine-grained Reward  | $w_f = 0.2$ | TP(+1) / FP(−0.5) / FN(−0.8) via Hungarian matching |
+| Quality Shaping  | $w_q = 0.2$ | Online-learned $Q(s)$ with EMA update ($\gamma=0.95$, $\alpha=0.01$) |
 
 **Key hyperparameters:**
 

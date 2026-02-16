@@ -24,7 +24,7 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 ├── train_GRPO.py                           # Stage 2: GRPO RL fine-tuning script
 ├── plot_overall.py                         # Overall error comparison visualization
 ├── plot_basinwise.py                       # Basin-wise performance comparison visualization
-├── figure                                  # figures
+├── figures                                 # figures
 └── TCDLD/                                  # Dataset 
 ```
 

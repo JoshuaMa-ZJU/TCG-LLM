@@ -6,7 +6,7 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 
 ## Framework
 <div align="center">
-  <img src="TCG-LLM.png" alt="The overall architecture of TCG-LLM" width="800">
+  <img src="figure/TCG-LLM.png" alt="The overall architecture of TCG-LLM" width="800">
 </div>
 
   The input of TCG-LLM consists of two parts: prompts and data, where the data component includes satellite images, geopotential height (GPH) data and sea surcface temperature (SST) data covering an entire ocean basin. For each type of data, we generate textual statistical descriptors and feed them to the VLM together with the corresponding images. We incorporate TC knowledge and design Image Encoder, GPH Encoder, and SST Encoder based on CNNs and attention mechanisms to extract visual physics-aware features. For the corresponding statistical descriptors, we design a Text Encoder to capture semantic information, and fuse textual and visual features via cross-attention, enabling the model to focus on image regions relevant to the text and improving visual understanding.   
@@ -21,7 +21,10 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 ├── cnn_encoders.py                         # Physics-aware CNN encoders 
 ├── prefix_injector.py                      # KV prefix injection module 
 ├── train_SFT.py                            # Stage 1: SFT training script 
-├── train_GRPO.py                           # Stage 2: GRPO RL fine-tuning script 
+├── train_GRPO.py                           # Stage 2: GRPO RL fine-tuning script
+├── plot_overall.py                         # Overall error comparison visualization
+├── plot_basinwise.py                       # Basin-wise performance comparison visualization
+├── figure                                  # figures
 └── TCDLD/                                  # Dataset 
 ```
 

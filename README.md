@@ -2,7 +2,7 @@
 This repo is for the paper TCG-LLM: Physics-aware Fine-tuning with Quality-based Reward Shaping for Tropical Cyclogenesis Detection and Localization.
 
 ## Introduction
-In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG-LLM)***, a multimodal large language model for basin-scale TCG detection and localization. We design a physics-aware fine-tuning strategy, using encoders based on convolutional neural networks to extract TC-specific physically meaningful features, which are injected in VLMs to guide the model to incorporate meteorological knowledge in fine-tuning. To improve generalization beyond training patterns, we further incorporate Group Relative Policy Optimization (GRPO) with quality-based reward shaping, using an online-learned quality function to provide dense intermediate learning signals that accelerate convergence and improve accuracy. We also apply fine-grained penalty on false negative cases to reduce miss TCG detections. We construct the ***Tropical Cyclogenesis Detection and Location Dataset (TCDLD)*** for evaluation. Experiments show that TCG-LLM reduces TC detection mean absolute error and localization mean distance error by 40.87% and 31.2%, respectively, compared with state-of-the-art baselines.
+In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG-LLM)***, a multimodal large language model for basin-scale TCG detection and localization. We design a physics-aware fine-tuning strategy, using encoders based on convolutional neural networks to extract TC-specific physically meaningful features, which are injected in VLMs to guide the model to incorporate meteorological knowledge in fine-tuning. To improve generalization beyond training patterns, we further incorporate Group Relative Policy Optimization (GRPO) with quality-based reward shaping, using an online-learned quality function to provide dense intermediate learning signals that accelerate convergence and improve accuracy. We also apply fine-grained penalty on false negative cases to reduce miss TCG detections. We construct the ***Tropical Cyclogenesis Detection and Location Dataset (TCDLD)*** for evaluation. Experiments show that TCG-LLM reduces TC detection mean absolute error and localization mean distance error by 39.85% and 31.72%, respectively, compared with state-of-the-art baselines.
 
 ## Framework
 <div align="center">
@@ -25,43 +25,46 @@ In this paper, we propose the ***Tropical CycloGenesis Large Language Model (TCG
 ├── plot_overall.py                         # Overall error comparison visualization
 ├── plot_basinwise.py                       # Basin-wise performance comparison visualization
 ├── figures                                 # figures
-├── results                                 # TCG detection and localization results of TCG-LLM and baselines on TCDLD test set
+├── results                                 # TCG detection and localization results of all 12 models on TCDLD test set
 └── TCDLD/                                  # Dataset 
 ```
 
 ## TCDLD Dataset
 
-We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 15,431 samples from 2019 to 2024 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). We split the dataset into training and test sets using a 4:1 ratio: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, and 3,087 samples from 2023-06-22 to 2024-09-30 are used for testing. 
+We proposed Tropical Cyclogenesis Detection and Location Dataset ([TCDLD](https://drive.google.com/file/d/1-eVntCFSOM33fQk5lWpCWIgPQZfTKZaU/view?usp=sharing)) for the evaluation of TCG-LLM. TCDLD contains 18,679 samples from 2019 to 2026 with a temporal resolution of 12 hours, and each sample includes satellite imagery, GPH, SST, and corresponding textual statistical descriptors. The satellite imagery is sourced from Gridded Satellite ([GridSat-B1](https://www.ncei.noaa.gov/products/gridded-geostationary-brightness-temperature)). Ground-truth TC locations are obtained from International Best Track Archive for Climate Stewardship ([IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive)). Both GPH and SST are derived from European Centre for Medium-Range Weather Forecasts Reanalysis 5 ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=overview)). For each 12-hour time step, all ocean basins with active TCs are included; if fewer than 3 basins have TCs at a given time step, additional basins without TCs are randomly sampled to ensure at least 3 basins per time step. We split the dataset into training and test sets with a temporal buffer to prevent TC leakage: 12,344 samples from 2019-01-01 to 2023-06-22 are used for training, samples from 2023-06-23 to 2023-06-30 are excluded as a buffer period (to ensure no TC active during training appears in the test set; 2 TCs crossing the boundary dissipated by 2023-06-26), and 6,335 samples from 2023-07-01 to 2026-03-30 are used for testing. 
 
 | Statistic | Value |
 |-----------|-------|
-| Total samples | 15,431 |
-| Positive (has TC) | 6,357 (41.2%) |
-| Negative (no TC) | 9,074 (58.8%) |
+| Total samples | 18,679 |
+| Training samples | 12,344 (2019-01-01 to 2023-06-22) |
+| Buffer period (excluded) | 2023-06-23 to 2023-06-30 |
+| Test samples | 6,335 (2023-07-01 to 2026-03-30) |
+| Positive (has TC) | 7,954 (43.2%) |
+| Negative (no TC) | 10,469 (56.8%) |
 | Ocean basins | EP, NA, NI, SI, SP, WP |
 | Temporal resolution | 12 hours (00:00 / 12:00 UTC) |
-| Total size | ~138 GB |
+| Total size | ~165 GB |
 
 ### Directory Structure
 
 ```
 TCDLD/
 ├── image/          # Satellite brightness temperature images (.npy)
-│                   #   15,431 files, ~38 GB
+│                   #   18,423 files, ~45 GB
 │                   #   Format: dict{'image': ndarray(H, W), float16}
 │                   #   Typical shape: ~715×1786 (varies by basin)
 │
 ├── gph/            # Geopotential height fields at 6 pressure levels (.npy)
-│                   #   15,431 files, ~25 GB
+│                   #   18,423 files, ~30 GB
 │                   #   Format: ndarray(6, H, W), float16
 │                   #   6 levels: 200, 500, 700, 850, 925, 1000 hPa
 │
 ├── sst/            # Sea surface temperature fields (.npy)
-│                   #   15,431 files, ~15 GB
+│                   #   18,423 files, ~18 GB
 │                   #   Format: ndarray(H, W), float16
 │
 ├── label/          # Ground-truth labels from IBTrACS (.npy)
-│                   #   15,431 files, ~15 GB
+│                   #   18,423 files, ~18 GB
 │                   #   Format: dict{
 │                   #     'tc_count': int,
 │                   #     'tc_positions': [(lat, lon), ...],
@@ -103,6 +106,27 @@ Example: `20240915_0000_WP_image.npy` → Western Pacific satellite image on 202
     'tc_msw': [64.0, None, None]  # knots; None = intensity unavailable
 }
 ```
+
+## Results
+
+We evaluate all models on the TCDLD test set (6,335 samples, 2023-07-01 to 2026-03-30). Detection performance is assessed using Hungarian matching with a 500 km threshold. **MR** (Miss Rate) = FN / (TP + FN), measuring the proportion of missed TCs. **FAR** (False Alarm Rate) = FP / (TP + FP), measuring the proportion of false detections.
+
+| Model | Params | Count MAE ↓ | Count RMSE ↓ | MR ↓ | FAR ↓ | F1 ↑ | Dist. MAE (km) ↓ | Dist. RMSE (km) ↓ |
+|-------|--------|-------------|--------------|------|-------|------|-------------------|---------------------|
+| FPN | <0.1B | 0.552 | 0.781 | 48.01% | 62.56% | 43.54% | 156.4 | 178.3 |
+| Mask R-CNN | <0.1B | 0.412 | 0.727 | 46.74% | 41.14% | 55.92% | 152.7 | 187.4 |
+| GLM-4.5V | 106B | 0.346 | 0.630 | 36.26% | 35.91% | 63.91% | 106.8 | 129.3 |
+| Qwen3-VL-235B | 235B | 0.359 | 0.610 | 21.34% | 39.48% | 68.41% | 101.1 | 124.3 |
+| Gemini-3 Pro | - | 0.262 | 0.603 | 34.95% | 17.59% | 72.71% | 110.2 | 139.5 |
+| Claude-Opus-4.5 | - | 0.253 | 0.622 | 26.31% | 23.99% | 74.83% | 100.4 | 129.3 |
+| GPT-5.2 | - | 0.133 | 0.460 | 16.44% | 9.66% | 86.82% | 88.9 | 117.6 |
+| Ministral 3 8B† | 8B | 0.182 | 0.461 | 24.90% | 11.72% | 81.16% | 89.8 | 112.5 |
+| Qwen3-VL-8B† | 8B | 0.164 | 0.432 | 22.15% | 11.15% | 82.99% | 86.9 | 109.8 |
+| Gemma 4 E4B† | 4B | 0.133 | 0.379 | 16.34% | 7.66% | 87.78% | 73.5 | 99.4 |
+| Qwen3.5-9B† | 9B | 0.113 | 0.349 | 14.19% | 6.05% | 89.69% | 67.3 | 92.2 |
+| **TCG-LLM** | **8B** | **0.080** | **0.301** | **8.54%** | **5.97%** | **92.73%** | **60.7** | **86.3** |
+
+†: Fine-tuned with TCG-LLM SFT pipeline (without GRPO). Qwen3-VL-8B serves as the vanilla SFT baseline.
 
 ## Scripts
 

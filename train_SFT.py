@@ -101,7 +101,9 @@ class ScriptConfig:
     save_steps: int = 100
     eval_steps: int = 100
 
-    train_split: float = 0.8
+    train_end_date: str = "20230622"       # last date included in training (inclusive)
+    buffer_end_date: str = "20230630"      # buffer period end; files between train_end_date and buffer_end_date are excluded
+    test_start_date: str = "20230701"      # first date included in testing (inclusive)
     max_length: int = 2048
     doc_max_chars: int = 1200
 
@@ -871,9 +873,16 @@ def main():
     all_files = sorted(glob(os.path.join(cfg.data_folder, '*_image.npy')))
     if len(all_files) == 0:
         raise RuntimeError(f"No image files found in {cfg.data_folder}. Expected format: YYYYMMDD_HHMM_BASIN_image.npy")
-    split_idx = int(len(all_files) * cfg.train_split)
-    train_files, eval_files = all_files[:split_idx], all_files[split_idx:]
-    print(f"Train: {len(train_files)} | Val: {len(eval_files)}")
+
+    # Date-based split with buffer period to prevent TC leakage.
+    # Training: <= train_end_date | Buffer (excluded): train_end_date < date <= buffer_end_date | Test: >= test_start_date
+    def _extract_date(fpath):
+        return os.path.basename(fpath).split('_')[0]
+
+    train_files = [f for f in all_files if _extract_date(f) <= cfg.train_end_date]
+    eval_files  = [f for f in all_files if _extract_date(f) >= cfg.test_start_date]
+    n_buffer = len(all_files) - len(train_files) - len(eval_files)
+    print(f"Train: {len(train_files)} | Val: {len(eval_files)} | Buffer (excluded): {n_buffer}")
 
     train_dataset = CycloneDatasetFast(
         train_files, cfg.docs_folder, processor, cfg.max_length,

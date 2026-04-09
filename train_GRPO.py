@@ -105,7 +105,9 @@ class ScriptConfig:
     num_generations: int = 8
     beta: float = 0.01
 
-    train_split: float = 4/5
+    train_end_date: str = "20230622"       # last date included in training (inclusive)
+    buffer_end_date: str = "20230630"      # buffer period end; excluded to prevent TC leakage
+    test_start_date: str = "20230701"      # first date included in testing (inclusive)
     max_length: int = 2048
     doc_max_chars: int = 1200
 
@@ -1200,8 +1202,13 @@ def main():
     all_files = sorted(glob(os.path.join(cfg.data_folder, "*_image.npy")))
     if len(all_files) == 0:
         raise RuntimeError(f"No data files found in {cfg.data_folder}")
-    split = int(len(all_files) * cfg.train_split)
-    train_files = all_files[:split]
+
+    # Date-based split with buffer period to prevent TC leakage.
+    def _extract_date(fpath):
+        return os.path.basename(fpath).split('_')[0]
+
+    train_files = [f for f in all_files if _extract_date(f) <= cfg.train_end_date]
+    print(f"Train: {len(train_files)} | Total files: {len(all_files)} | Buffer/Test excluded from training")
 
     train_dataset = CycloneGRPO_DatasetFast(
         train_files,

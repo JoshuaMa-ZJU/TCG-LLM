@@ -72,6 +72,7 @@ class ScriptConfig:
     data_folder: str = "/root/autodl-tmp/TCDLD/image"
     docs_folder: str = "/root/autodl-tmp/TCDLD/image_docs"
     label_folder: str = "/root/autodl-tmp/TCDLD/label"
+    use_image: bool = True
     gph_folder: str = "/root/autodl-tmp/TCDLD/gph"
     gph_docs_folder: str = "/root/autodl-tmp/TCDLD/gph_docs"
     use_gph: bool = True
@@ -168,6 +169,7 @@ class ScriptConfig:
 # =====================================================================
 class CycloneGRPO_DatasetFast(Dataset):
     def __init__(self, data_files: List[str], docs_folder: str, processor, max_length: int = 2048,
+                 use_image: bool = True,
                  gph_folder: str = "", gph_docs_folder: str = "", use_gph: bool = False,
                  sst_folder: str = "", sst_docs_folder: str = "", use_sst: bool = False,
                  use_cot: bool = False, cot_instruction: str = "",
@@ -175,6 +177,7 @@ class CycloneGRPO_DatasetFast(Dataset):
                  doc_max_chars: int = 1200):
         self.data_files = data_files
         self.docs_folder = docs_folder
+        self.use_image = use_image
         self.gph_folder = gph_folder
         self.gph_docs_folder = gph_docs_folder
         self.use_gph = use_gph
@@ -466,7 +469,7 @@ class CycloneGRPO_DatasetFast(Dataset):
         img_arr = data.get('image', data.get('img', None))
         if img_arr is None:
             raise ValueError(f"No image found in {path}")
-        image = self._to_pil_image(img_arr)
+        image = self._to_pil_image(img_arr) if self.use_image else None
 
         md_text = self._load_doc(path)
         prefix_kv = None
@@ -474,7 +477,10 @@ class CycloneGRPO_DatasetFast(Dataset):
         base_for_prefix = os.path.splitext(os.path.basename(path))[0]
         if self._script_cfg and getattr(self._script_cfg, 'use_cnn_feature_prefix', False) and self._cnn_ready:
             try:
-                cnn_tensor = self._to_cnn_tensor(img_arr)
+                if self.use_image:
+                    cnn_tensor = self._to_cnn_tensor(img_arr)
+                else:
+                    cnn_tensor = torch.zeros(1, *img_arr.shape[-2:])
                 train_prefix = getattr(self._script_cfg, 'train_prefix_encoder', False)
                 if train_prefix:
                     prefix_kv = self._build_prefix_kv(base_for_prefix, md_text, cnn_tensor, requires_grad=True)
@@ -483,9 +489,17 @@ class CycloneGRPO_DatasetFast(Dataset):
             except Exception:
                 prefix_kv = None
 
+        input_modalities = []
+        if self.use_image:
+            input_modalities.append("the satellite image")
+        if self.use_gph:
+            input_modalities.append("geopotential height data")
+        if self.use_sst:
+            input_modalities.append("sea surface temperature data")
+        modality_str = ", ".join(input_modalities) if input_modalities else "the available data"
         user_text_parts = [
             "You are an AI assistant specialized in tropical cyclogenesis detection and localization.\n\n"
-            "Your task is to use the satellite image, geopotential height data and sea surface temperature data "
+            f"Your task is to use {modality_str} "
             "together with the Markdown notes corresponding to each data to obtain the current TC numbers and positions.\n\n",
         ]
         if self.use_cot and self.cot_instruction:
@@ -514,7 +528,8 @@ class CycloneGRPO_DatasetFast(Dataset):
                 sst_doc = self._cached_doc(sst_doc_path2, self.doc_max_chars)
             if sst_doc:
                 user_text_parts.append("\nSST (Sea Surface Temperature) data context (Markdown):\n" + sst_doc + "\n")
-        user_text_parts.append("\nSatellite image data context (Markdown):\n" + md_text + "\n\n")
+        if self.use_image:
+            user_text_parts.append("\nSatellite image data context (Markdown):\n" + md_text + "\n\n")
         user_text_parts.append(
             "Return the result strictly in the following JSON format:\n"
             "\"current_tc_count\": int, "
@@ -522,24 +537,37 @@ class CycloneGRPO_DatasetFast(Dataset):
         )
         user_text = "".join(user_text_parts)
         if self.model_family == 'llava':
-            prompt_text = "\n".join([
-                "USER: <image>",
-                user_text,
-                "ASSISTANT:",
-            ])
-            proc_out = self.processor(
-                text=prompt_text,
-                images=[image],
-                return_tensors='pt',
-                padding=False,
-                truncation=False,
-            )
+            if self.use_image:
+                prompt_text = "\n".join([
+                    "USER: <image>",
+                    user_text,
+                    "ASSISTANT:",
+                ])
+                proc_out = self.processor(
+                    text=prompt_text,
+                    images=[image],
+                    return_tensors='pt',
+                    padding=False,
+                    truncation=False,
+                )
+            else:
+                prompt_text = "\n".join([
+                    "USER:",
+                    user_text,
+                    "ASSISTANT:",
+                ])
+                proc_out = self.processor(
+                    text=prompt_text,
+                    return_tensors='pt',
+                    padding=False,
+                    truncation=False,
+                )
         else:
             messages = [
-                {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": user_text}]},
+                {"role": "user", "content": ([{"type": "image"}] if self.use_image else []) + [{"type": "text", "text": user_text}]},
             ]
             prompt_text = self.processor.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            proc_out = self.processor(text=prompt_text, images=[image], return_tensors='pt', truncation=True, max_length=self.max_length)
+            proc_out = self.processor(text=prompt_text, images=[image] if self.use_image else None, return_tensors='pt', truncation=True, max_length=self.max_length)
 
         item: Dict[str, Any] = {}
         for k, v in proc_out.items():
@@ -1215,6 +1243,7 @@ def main():
         cfg.docs_folder,
         processor,
         max_length=cfg.max_length,
+        use_image=cfg.use_image,
         gph_folder=cfg.gph_folder,
         gph_docs_folder=cfg.gph_docs_folder,
         use_gph=cfg.use_gph,
@@ -1378,9 +1407,10 @@ def main():
     model_short_name = cfg.model_name.split('/')[-1]
     method_tag = "GRPO-fast"
     cot_tag = "on" if cfg.use_cot else "off"
+    img_tag = "img-on" if getattr(cfg, 'use_image', True) else "img-off"
     gph_tag = "gph-on" if getattr(cfg, 'use_gph', False) else "gph-off"
     sst_tag = "sst-on" if getattr(cfg, 'use_sst', False) else "sst-off"
-    save_dir = os.path.join(cfg.output_dir, f"{model_short_name}_{method_tag}_cot-{cot_tag}_{gph_tag}_{sst_tag}")
+    save_dir = os.path.join(cfg.output_dir, f"{model_short_name}_{method_tag}_cot-{cot_tag}_{img_tag}_{gph_tag}_{sst_tag}")
     os.makedirs(save_dir, exist_ok=True)
     trainer.save_model(save_dir)
     try:

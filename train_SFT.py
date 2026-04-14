@@ -69,6 +69,7 @@ class ScriptConfig:
     data_folder: str = "/root/autodl-tmp/TCDLD/image"
     docs_folder: str = "/root/autodl-tmp/TCDLD/image_docs"
     label_folder: str = "/root/autodl-tmp/TCDLD/label"
+    use_image: bool = True
     gph_folder: str = "/root/autodl-tmp/TCDLD/gph"
     gph_docs_folder: str = "/root/autodl-tmp/TCDLD/gph_docs"
     use_gph: bool = True
@@ -211,12 +212,14 @@ def load_label_file(data_path: str, label_folder: str) -> dict:
 # =====================================================================
 class CycloneDatasetFast(Dataset):
     def __init__(self, data_files: List[str], docs_folder: str, processor, max_length: int,
+                 use_image: bool = True,
                  gph_folder: str = "", gph_docs_folder: str = "", use_gph: bool = False,
                  sst_folder: str = "", sst_docs_folder: str = "", use_sst: bool = False,
                  use_cot: bool = False, cot_instruction: str = "",
                  doc_max_chars: int = 1200):
         self.data_files = data_files
         self.docs_folder = docs_folder
+        self.use_image = use_image
         self.gph_folder = gph_folder
         self.gph_docs_folder = gph_docs_folder
         self.use_gph = use_gph
@@ -577,14 +580,22 @@ class CycloneDatasetFast(Dataset):
         + format constraint."""
         npy_path = self.data_files[idx]
         data = self._load_data(npy_path)
-        image = self._to_pil_image(data['image'])
+        image = self._to_pil_image(data['image']) if self.use_image else None
         base_name = os.path.splitext(os.path.basename(npy_path))[0]
         doc_content = self._load_doc_by_stem(base_name, self.doc_max_chars)
 
         # Compose the VLM user prompt (System + Task + CoT + Data + Format)
+        input_modalities = []
+        if self.use_image:
+            input_modalities.append("the satellite image")
+        if self.use_gph:
+            input_modalities.append("geopotential height data")
+        if self.use_sst:
+            input_modalities.append("sea surface temperature data")
+        modality_str = ", ".join(input_modalities) if input_modalities else "the available data"
         user_text = (
             "You are an AI assistant specialized in tropical cyclogenesis detection and localization.\n\n"
-            "Your task is to use the satellite image, geopotential height data and sea surface temperature data "
+            f"Your task is to use {modality_str} "
             "together with the Markdown notes corresponding to each data to obtain the current TC numbers and positions.\n\n"
         )
         if self.use_cot and self.cot_instruction:
@@ -609,7 +620,8 @@ class CycloneDatasetFast(Dataset):
                 sst_doc = self._cached_doc(sst_doc_path2, self.doc_max_chars)
             if sst_doc:
                 user_text += "SST (Sea Surface Temperature) data context (Markdown):\n" + sst_doc + "\n\n"
-        user_text += "Satellite image data context (Markdown):\n" + doc_content + "\n\n"
+        if self.use_image:
+            user_text += "Satellite image data context (Markdown):\n" + doc_content + "\n\n"
         user_text += (
             "Return the result strictly in the following JSON format:\n"
             "\"current_tc_count\": int, \"current_tcs\": [ {\"lat\": float, \"lon\": float} ]"
@@ -619,7 +631,7 @@ class CycloneDatasetFast(Dataset):
         response = f"```json\n{json.dumps(response_data, indent=2, ensure_ascii=False)}\n```"
 
         messages = [
-            {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": user_text}]},
+            {"role": "user", "content": ([{"type": "image"}] if self.use_image else []) + [{"type": "text", "text": user_text}]},
             {"role": "assistant", "content": response},
         ]
         prompt_text = self.processor.tokenizer.apply_chat_template(messages[:-1], tokenize=False, add_generation_prompt=True)
@@ -627,7 +639,7 @@ class CycloneDatasetFast(Dataset):
         prompt_tokens = self.processor(text=prompt_text, add_special_tokens=True, return_tensors="pt").input_ids
         inputs = self.processor(
             text=full_text,
-            images=[image],
+            images=[image] if self.use_image else None,
             return_tensors="pt",
             padding="max_length",
             max_length=self.max_length,
@@ -669,7 +681,11 @@ class CycloneDatasetFast(Dataset):
         pkv = None
         if getattr(self._script_cfg, 'use_cnn_feature_prefix', False) and self._cnn_ready and self._prefix_encoder is not None:
             try:
-                cnn_tensor = self._to_cnn_tensor(data['image'])
+                if self.use_image:
+                    cnn_tensor = self._to_cnn_tensor(data['image'])
+                else:
+                    img_shape = data['image'].shape if 'image' in data else (256, 256)
+                    cnn_tensor = torch.zeros(1, *img_shape[-2:])
                 train_prefix = getattr(self._script_cfg, 'train_prefix_encoder', False)
                 if train_prefix:
                     pkv = self._build_prefix_kv(base_name, data, cnn_tensor, doc_content, requires_grad=True)
@@ -886,6 +902,7 @@ def main():
 
     train_dataset = CycloneDatasetFast(
         train_files, cfg.docs_folder, processor, cfg.max_length,
+        use_image=cfg.use_image,
         gph_folder=cfg.gph_folder, gph_docs_folder=cfg.gph_docs_folder,
         use_gph=cfg.use_gph,
         sst_folder=cfg.sst_folder, sst_docs_folder=cfg.sst_docs_folder,
@@ -895,6 +912,7 @@ def main():
     )
     eval_dataset = CycloneDatasetFast(
         eval_files, cfg.docs_folder, processor, cfg.max_length,
+        use_image=cfg.use_image,
         gph_folder=cfg.gph_folder, gph_docs_folder=cfg.gph_docs_folder,
         use_gph=cfg.use_gph,
         sst_folder=cfg.sst_folder, sst_docs_folder=cfg.sst_docs_folder,
@@ -1328,13 +1346,14 @@ def main():
     finetune_method = "QLoRA-fast"
     cot_tag = "on" if getattr(cfg, "use_cot", False) else "off"
     cnn_pref_tag = "cnnprefix-on" if getattr(cfg, 'use_cnn_feature_prefix', False) else "cnnprefix-off"
+    img_tag = "img-on" if getattr(cfg, 'use_image', True) else "img-off"
     gph_tag = "gph-on" if getattr(cfg, 'use_gph', False) else "gph-off"
     sst_tag = "sst-on" if getattr(cfg, 'use_sst', False) else "sst-off"
     extra_bits = []
     if getattr(cfg, 'use_cnn_feature_prefix', False):
         extra_bits.append(f"pfx{getattr(cfg,'prefix_len',128)}")
     extra_suffix = ("_" + "_".join(extra_bits)) if extra_bits else ""
-    model_folder_name = f"{model_short_name}_{finetune_method}_cot-{cot_tag}_{cnn_pref_tag}_{gph_tag}_{sst_tag}{extra_suffix}"
+    model_folder_name = f"{model_short_name}_{finetune_method}_cot-{cot_tag}_{cnn_pref_tag}_{img_tag}_{gph_tag}_{sst_tag}{extra_suffix}"
     final_path = os.path.join(cfg.output_dir, model_folder_name)
     os.makedirs(final_path, exist_ok=True)
     trainer.save_model(final_path)

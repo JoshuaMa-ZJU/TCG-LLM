@@ -119,14 +119,60 @@ We evaluate all models on the TCDLD test set (6,335 samples, 2023-07-01 to 2026-
 | Qwen3-VL-235B | 235B | 0.359 | 0.610 | 21.34% | 39.48% | 68.41% | 101.1 | 124.3 |
 | Gemini-3 Pro | - | 0.262 | 0.603 | 34.95% | 17.59% | 72.71% | 110.2 | 139.5 |
 | Claude-Opus-4.5 | - | 0.253 | 0.622 | 26.31% | 23.99% | 74.83% | 100.4 | 129.3 |
-| GPT-5.2 | - | 0.133 | 0.460 | 16.44% | 9.66% | 86.82% | 88.9 | 117.6 |
+| GPT-5.2 | - | 0.134 | 0.432 | 20.35% | 6.63% | 85.96% | 88.9 | 117.1 |
 | Ministral 3 8B† | 8B | 0.182 | 0.461 | 24.90% | 11.72% | 81.16% | 89.8 | 112.5 |
 | Qwen3-VL-8B† | 8B | 0.164 | 0.432 | 22.15% | 11.15% | 82.99% | 86.9 | 109.8 |
 | Gemma 4 E4B† | 4B | 0.133 | 0.379 | 16.34% | 7.66% | 87.78% | 73.5 | 99.4 |
 | Qwen3.5-9B† | 9B | 0.119 | 0.358 | 14.80% | 6.69% | 89.07% | 75.2 | 101.5 |
 | **TCG-LLM** | **8B** | **0.080** | **0.301** | **8.54%** | **5.97%** | **92.73%** | **60.7** | **86.3** |
 
-†: Fine-tuned with TCG-LLM SFT pipeline (without GRPO). Qwen3-VL-8B serves as the vanilla SFT baseline.
+†: Fine-tuned with TCG-LLM vanilla SFT pipeline (without physics-guided encoders and GRPO). Qwen3-VL-8B serves as the vanilla SFT baseline.
+
+
+## Encoder-level Ablation
+
+We ablate each encoder individually while keeping the rest of the pipeline intact (SFT + GRPO):
+
+| Configuration | CMAE↓ | F1↑ | MR↓ | DMAE↓ |
+|---------------|-------|-----|-----|-------|
+| w/o Satellite Image | 0.180 | 80.99% | 21.57% | 106.9 |
+| w/o GPH | 0.130 | 86.67% | 16.01% | 89.2 |
+| w/o SST | 0.109 | 90.23% | 11.87% | 69.7 |
+| Full (TCG-LLM) | 0.080 | 92.73% | 8.54% | 60.7 |
+
+- **Satellite imagery** contributes most (removing it degrades F1 by 11.74%), as it directly captures cloud-top spiral structures indicative of TC vortex formation.
+- **GPH** is the second most impactful (F1 −6.06%): the GPH Encoder uses 3D convolutions over 6 pressure levels (200–1000 hPa) to capture **vertical wind shear** and **baroclinic instability** — key dynamical drivers of cyclogenesis not observable from imagery alone.
+- **SST** provides complementary thermodynamic information (F1 −2.50%), enforcing the **warm-pool threshold** (≥26.5°C) necessary for TC genesis and detecting TC-induced **cold-core SST anomalies**.
+
+## CoT Comparison: How Physics-guided Prefix Alters Reasoning
+
+We compare the chain-of-thought reasoning on the same input with and without the physics-guided prefix injection (WP basin, 2024-09-15 00:00 UTC, GT: 3 TCs at (29.7°N, 127.1°E), (12.1°N, 144.6°E), (16.7°N, 126.0°E)):
+
+**Without physics-guided prefix (vanilla SFT):**
+
+> (1) The satellite image shows cloud clusters in the western Pacific. A prominent spiral cloud system is visible near 12°N, 145°E with deep convective features. Another cloud mass near 17°N, 126°E shows some cyclonic organization. A diffuse cloud system near 30°N appears to have weakened convective signatures, and the textual statistics report a relatively high GPH at this latitude, suggesting a non-tropical system. A broad cloud band extends near 8°N, 135°E.
+> (2) Locating TC signatures: (a) The GPH statistics mention basin-level lows concentrated at lower latitudes; the 30°N region is not highlighted. (b) The SST statistics indicate basin-average SST of 28.9°C but do not provide a precise spatial pattern near 30°N. (c) From the satellite image, the spiral center near 12.2°N, 145.0°E is the most well-defined; the cloud mass near 17°N shows moderate curvature at (16.8°N, 125.9°E). The 30°N system is dismissed as likely extratropical. The broad cloud band near 8°N does not show a clear vortex center.
+> (3) I identify 2 tropical cyclones.
+> → **Prediction: count=2, positions: (12.3°N, 145.1°E), (16.5°N, 126.3°E)** ✗ Missed the TC at 29.7°N
+
+**With physics-guided prefix (TCG-LLM):**
+
+> (1) The satellite image shows three cloud clusters in the western Pacific. The cloud system near 12°N, 145°E exhibits clear spiral banding. Near 17°N, 126°E, another organized cluster is present with cyclonic curvature. Near 30°N, 127°E, a cloud system appears less organized in satellite imagery alone, but the geopotential height field reveals a closed low-pressure center at 500 hPa with a −42 gpm anomaly, and vertical wind shear between 200 and 850 hPa remains moderate at 12 m/s, indicating tropical rather than extratropical characteristics. A broad cloud band near 8°N, 135°E shows an elongated east–west pattern with no closed GPH contour at any level.
+> (2) Locating TC signatures: (a) GPH minima are identified at three locations — 12.0°N/144.8°E (anomaly −68 gpm), 16.8°N/125.9°E (−55 gpm), and 29.6°N/127.0°E (−42 gpm). The 3D vertical structure at 29.6°N shows warm-core tilting consistent with a recurving TC. (b) SST values at all three locations (29.5°C, 27.8°C, 28.2°C) exceed 26.5°C, and cold-core SST anomalies of −1.2°C, −0.6°C, and −0.8°C confirm active ocean-atmosphere coupling. The cloud band near 8°N, 135°E lacks a localized SST cold-core signature and shows no cyclonic curvature, consistent with a monsoon trough rather than a developing TC. (c) The satellite spiral centers align with the GPH minima at approximately (12.1°N, 144.7°E), (16.6°N, 126.1°E), and (29.8°N, 127.2°E).
+> (3) I identify 3 tropical cyclones.
+> → **Prediction: count=3, positions: (29.8°N, 127.2°E), (12.1°N, 144.7°E), (16.6°N, 126.1°E)** ✓ All 3 detected
+
+### Analysis: How Injected Features Alter Reasoning
+
+Vanilla SFT's CoT Step (1) relies solely on satellite cloud morphology; its Step (2) can only reference basin-level textual statistics (e.g., "basin-average SST 28.9°C"), which lack the spatial resolution to distinguish localized TC signatures. This leads to two critical failures: **(a) no physical consistency verification** — without localized SST data, the model cannot verify whether thermodynamic conditions (SST ≥ 26.5°C) support TC genesis at specific candidate locations; **(b) inability to distinguish meteorological phenomena** — the model cannot differentiate between a genuine TC, a monsoon trough, an easterly wave, or a subtropical low based on morphology alone, causing it to both miss ambiguous TCs (the 30°N system) and fail to provide a principled basis for excluding non-TC features.
+
+In contrast, TCG-LLM's physics-guided prefix injects the CNN-extracted physics directly into the self-attention computation: the prefix tokens act as implicit soft anchors encoding GPH vertical profiles and SST cold-core patterns at sub-basin resolution. This fundamentally changes the CoT reasoning in three ways:
+
+1. **Step (1) gains physics-aware perception** — the model identifies the 30°N system not by cloud shape alone but by attending to prefix tokens that encode a closed 500 hPa GPH low (−42 gpm) and moderate vertical wind shear (12 m/s), correctly classifying it as tropical.
+2. **Step (2) enforces physical consistency** — the model explicitly verifies that SST at each candidate TC location exceeds the **26.5°C thermodynamic threshold** for TC genesis, and confirms active ocean-atmosphere coupling through cold-core SST anomalies. This ensures predictions respect established physical constraints rather than relying on visual pattern matching alone.
+3. **Step (2) enables meteorological phenomenon discrimination** — the model cross-references multiple physical indicators to distinguish genuine TCs from visually similar but dynamically different phenomena: a monsoon trough is correctly excluded because it shows no closed GPH contour, no localized SST cold-core anomaly, and no cyclonic curvature — a multi-source diagnosis that is impossible with satellite imagery alone.
+
+This attention-level mechanism explains why removing GPH causes MR to nearly double (8.54% → 16.01% in the ablation table): without the GPH prefix tokens, Q vectors lose access to vertical structure information, and the model reverts to morphology-only reasoning that misses structurally ambiguous TCs. Similarly, removing SST eliminates the model's ability to enforce thermodynamic consistency, leading to increased false alarms at locations where SST conditions do not support TC genesis (FAR increases from 5.97% to 7.57%).
 
 ## Scripts
 

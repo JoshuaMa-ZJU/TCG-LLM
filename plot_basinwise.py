@@ -26,13 +26,29 @@ BASIN_ORDER = ['NA', 'EP', 'WP', 'NI', 'SI', 'SP']
 
 # Model configuration
 MODEL_CONFIG = {
-    'proposed': {'name': 'TCG-LLM', 'color': '#E64B35', 'marker': 'o', 'file': 'TCG-LLM.jsonl'},
-    'gpt': {'name': 'GPT-5.2', 'color': '#00A087', 'marker': 's', 'file': 'gpt.jsonl'},
-    'claude': {'name': 'Claude-4.5', 'color': '#4DBBD5', 'marker': '^', 'file': 'claude.jsonl'},
-    'gemini': {'name': 'Gemini-3', 'color': '#3C5488', 'marker': 'D', 'file': 'gemini.jsonl'},
-    'maskrcnn': {'name': 'Mask-RCNN', 'color': '#F39B7F', 'marker': 'v', 'file': 'maskrcnn.jsonl'},
+    'proposed': {
+        'name': 'TCG-LLM', 'color': '#E64B35', 'marker': 'o',
+        'files': ['TCG-LLM.jsonl']
+    },
+    'qwen35': {
+        'name': 'Qwen3.5-9B', 'color': '#4DBBD5', 'marker': '^',
+        'files': ['qwen35_9b.jsonl', 'qwen3.5.jsonl', 'qwen35.jsonl', 'Qwen3.5-9B.jsonl']
+    },
+    'gemma4': {
+        'name': 'Gemma 4 E4B', 'color': '#3C5488', 'marker': 'D',
+        'files': ['gemma4_e4b.jsonl', 'gemma4e4b.jsonl', 'gemma4.jsonl', 'Gemma4.jsonl', 'Gemma-4-E4B.jsonl']
+    },
+    'qwen3vl8b': {
+        'name': 'Qwen3-VL-8B', 'color': '#F39B7F', 'marker': 'v',
+        'files': ['qwen3vl8b.jsonl', 'qwen3-vl-8b.jsonl', 'Qwen3-VL-8B.jsonl']
+    },
+    'gpt': {
+        'name': 'GPT-5.2', 'color': '#00A087', 'marker': 's',
+        'files': ['gpt.jsonl']
+    },
 }
-MODEL_ORDER = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+MODEL_ORDER = ['proposed', 'qwen35', 'gemma4', 'qwen3vl8b', 'gpt']
+RESULT_SEARCH_DIRS = [Path('results'), Path(r'C:\Users\J0shu\Desktop\final_results')]
 
 plt.rcParams.update({
     'font.family': 'Times New Roman',
@@ -57,6 +73,28 @@ def load_jsonl(filepath):
             if line.strip():
                 records.append(json.loads(line))
     return records
+
+def resolve_result_file(results_dir, model_key):
+    """Resolve a model result file from common filename aliases."""
+    search_dirs = [results_dir]
+    for extra_dir in RESULT_SEARCH_DIRS:
+        if extra_dir not in search_dirs:
+            search_dirs.append(extra_dir)
+
+    for search_dir in search_dirs:
+        for candidate in MODEL_CONFIG[model_key]['files']:
+            filepath = search_dir / candidate
+            if filepath.exists():
+                return filepath
+
+    available = ', '.join(
+        sorted({p.name for search_dir in search_dirs if search_dir.exists() for p in search_dir.glob('*.jsonl')})
+    )
+    expected = ', '.join(MODEL_CONFIG[model_key]['files'])
+    raise FileNotFoundError(
+        f"Missing result file for {MODEL_CONFIG[model_key]['name']}. "
+        f"Expected one of: {expected}. Available JSONL files: {available}"
+    )
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371
@@ -604,29 +642,31 @@ def plot_compact_comparison(all_basin_data, save_path):
 
 # ==================== Main ====================
 def main():
-    base_path = Path(r"figures")
+    figures_dir = Path("figures")
+    results_dir = Path("results")
     
     print("Loading all model data...")
     all_basin_data = {}
     for model, config in MODEL_CONFIG.items():
-        records = load_jsonl(base_path / config['file'])
+        result_file = resolve_result_file(results_dir, model)
+        records = load_jsonl(result_file)
         all_basin_data[model] = extract_basin_metrics(records)
-        print(f"  {config['name']}: loaded")
+        print(f"  {config['name']}: loaded from {result_file.name}")
     
     print("\nGenerating comprehensive figures...")
     
     # Figure 1: Full 9-panel comprehensive
-    plot_comprehensive_basin_comparison(all_basin_data, str(base_path / "fig_all_models_basin_full.png"))
+    plot_comprehensive_basin_comparison(all_basin_data, str(figures_dir / "fig_all_models_basin_full.png"))
     
     # Figure 2: Compact 4-panel high-impact
-    plot_compact_comparison(all_basin_data, str(base_path / "fig_all_models_basin_compact.png"))
+    plot_compact_comparison(all_basin_data, str(figures_dir / "fig_all_models_basin_compact.png"))
     
     # Individual subplots from compact comparison
     print("\nGenerating individual compact subplots...")
-    plot_subplot_compact_count_error(all_basin_data, str(base_path / "fig_compact_subplot_count_error.png"))
-    plot_subplot_compact_f1_heatmap(all_basin_data, str(base_path / "fig_compact_subplot_f1_heatmap.png"))
-    plot_subplot_compact_position_mae_radar(all_basin_data, str(base_path / "fig_compact_subplot_position_mae_radar.png"))
-    plot_subplot_compact_improvement(all_basin_data, str(base_path / "fig_compact_subplot_improvement.png"))
+    plot_subplot_compact_count_error(all_basin_data, str(figures_dir / "fig_compact_subplot_count_error.png"))
+    plot_subplot_compact_f1_heatmap(all_basin_data, str(figures_dir / "fig_compact_subplot_f1_heatmap.png"))
+    plot_subplot_compact_position_mae_radar(all_basin_data, str(figures_dir / "fig_compact_subplot_position_mae_radar.png"))
+    plot_subplot_compact_improvement(all_basin_data, str(figures_dir / "fig_compact_subplot_improvement.png"))
     
     print("\n" + "="*60)
     print("All comprehensive figures saved!")

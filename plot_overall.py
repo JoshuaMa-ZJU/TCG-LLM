@@ -1,6 +1,5 @@
 """
-Tropical Cyclone Detection Error Comparison Visualization
-Publication-ready figures with Nature journal color scheme
+Tropical Cyclone Detection Error Comparison Visualization.
 """
 
 import json
@@ -13,20 +12,31 @@ from collections import defaultdict
 
 # ==================== Configuration ====================
 NATURE_COLORS = {
-    'proposed': '#E64B35',   # Red - Our method (highlighted)
-    'claude': '#4DBBD5',     # Cyan
-    'gpt': '#00A087',        # Teal
-    'gemini': '#3C5488',     # Navy blue
-    'maskrcnn': '#F39B7F',   # Coral/Orange
+    'proposed': '#E64B35',
+    'qwen35': '#4DBBD5',
+    'gemma4': '#3C5488',
+    'qwen3vl8b': '#F39B7F',
+    'gpt': '#00A087',
 }
 
 MODEL_NAMES = {
     'proposed': 'TCG-LLM',
-    'claude': 'Gemini-3',
+    'qwen35': 'Qwen3.5-9B',
+    'gemma4': 'Gemma 4 E4B',
+    'qwen3vl8b': 'Qwen3-VL-8B',
     'gpt': 'GPT-5.2',
-    'gemini': 'Claude-4.5',
-    'maskrcnn': 'Mask-RCNN',
 }
+
+MODEL_ORDER = ['proposed', 'qwen35', 'gemma4', 'qwen3vl8b', 'gpt']
+MODEL_FILE_CANDIDATES = {
+    'proposed': ['TCG-LLM.jsonl'],
+    'qwen35': ['qwen35_9b.jsonl', 'qwen3.5.jsonl', 'qwen35.jsonl', 'Qwen3.5-9B.jsonl'],
+    'gemma4': ['gemma4_e4b.jsonl', 'gemma4e4b.jsonl', 'gemma4.jsonl', 'Gemma4.jsonl', 'Gemma-4-E4B.jsonl'],
+    'qwen3vl8b': ['qwen3vl8b.jsonl', 'qwen3-vl-8b.jsonl', 'Qwen3-VL-8B.jsonl'],
+    'gpt': ['gpt.jsonl'],
+}
+
+RESULT_SEARCH_DIRS = [Path('results'), Path(r'C:\Users\J0shu\Desktop\final_results')]
 
 # Set Times New Roman font
 plt.rcParams['font.family'] = 'Times New Roman'
@@ -50,6 +60,28 @@ def load_jsonl(filepath):
             if line.strip():
                 records.append(json.loads(line))
     return records
+
+def resolve_result_file(results_dir, model_key):
+    """Resolve a model result file from common filename aliases."""
+    search_dirs = [results_dir]
+    for extra_dir in RESULT_SEARCH_DIRS:
+        if extra_dir not in search_dirs:
+            search_dirs.append(extra_dir)
+
+    for search_dir in search_dirs:
+        for candidate in MODEL_FILE_CANDIDATES[model_key]:
+            filepath = search_dir / candidate
+            if filepath.exists():
+                return filepath
+
+    available = ', '.join(
+        sorted({p.name for search_dir in search_dirs if search_dir.exists() for p in search_dir.glob('*.jsonl')})
+    )
+    expected = ', '.join(MODEL_FILE_CANDIDATES[model_key])
+    raise FileNotFoundError(
+        f"Missing result file for {MODEL_NAMES[model_key]}. "
+        f"Expected one of: {expected}. Available JSONL files: {available}"
+    )
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Calculate haversine distance in km between two points."""
@@ -169,8 +201,8 @@ def calculate_metrics(records):
 def plot_bar_comparison(all_metrics, save_path):
     """Create bar chart comparing key metrics across models."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
-    
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+
+    models = MODEL_ORDER
     x = np.arange(len(models))
     width = 0.6
     
@@ -224,8 +256,8 @@ def plot_bar_comparison(all_metrics, save_path):
 def plot_boxplot_comparison(all_metrics, save_path):
     """Create boxplot for position error distribution."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    
-    models = ['proposed', 'gpt', 'gemini', 'claude', 'maskrcnn']
+
+    models = MODEL_ORDER
     
     # Panel (a): Latitude Error Distribution
     ax1 = axes[0]
@@ -296,7 +328,7 @@ def plot_boxplot_comparison(all_metrics, save_path):
 def plot_subplot_count_error(all_metrics, save_path):
     """Subplot (a): TC Count MAE & RMSE"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     colors = [NATURE_COLORS[m] for m in models]
     x_grouped = np.arange(len(models))
     width_g = 0.35
@@ -324,7 +356,7 @@ def plot_subplot_count_error(all_metrics, save_path):
 def plot_subplot_position_error(all_metrics, save_path):
     """Subplot (b): Position Distance Error"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     colors = [NATURE_COLORS[m] for m in models]
     x_grouped = np.arange(len(models))
     width_g = 0.35
@@ -352,7 +384,7 @@ def plot_subplot_position_error(all_metrics, save_path):
 def plot_subplot_detection_metrics(all_metrics, save_path):
     """Subplot (c): Precision, Recall, F1"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     x = np.arange(len(models))
     width_t = 0.25
     
@@ -382,7 +414,7 @@ def plot_subplot_detection_metrics(all_metrics, save_path):
 def plot_subplot_latitude_error(all_metrics, save_path):
     """Subplot (d): Latitude Error Boxplot"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     
     lat_data = [all_metrics[m]['lat_errors'] for m in models]
     parts = ax.violinplot(lat_data, positions=range(1, len(models)+1), widths=0.7,
@@ -421,7 +453,7 @@ def plot_subplot_latitude_error(all_metrics, save_path):
 def plot_subplot_longitude_error(all_metrics, save_path):
     """Subplot (e): Longitude Error Boxplot"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     
     lon_data = [all_metrics[m]['lon_errors'] for m in models]
     parts = ax.violinplot(lon_data, positions=range(1, len(models)+1), widths=0.7,
@@ -460,7 +492,7 @@ def plot_subplot_longitude_error(all_metrics, save_path):
 def plot_subplot_cdf(all_metrics, save_path):
     """Subplot (f): Distance Error CDF"""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     
     for model in models:
         errors = sorted(all_metrics[model]['distance_errors'])
@@ -493,7 +525,7 @@ def plot_comprehensive_comparison(all_metrics, save_path):
     # Create grid
     gs = fig.add_gridspec(2, 3, hspace=0.35, wspace=0.3)
     
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     colors = [NATURE_COLORS[m] for m in models]
     x = np.arange(len(models))
     width = 0.6
@@ -640,8 +672,8 @@ def plot_comprehensive_comparison(all_metrics, save_path):
 def plot_radar_comparison(all_metrics, save_path):
     """Create radar chart for multi-dimensional comparison."""
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-    
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+
+    models = MODEL_ORDER
     
     # Metrics to compare (normalized, higher is better)
     categories = ['F1 Score', 'Precision', 'Recall', 'Count Acc.', 'Position Acc.']
@@ -688,7 +720,7 @@ def plot_radar_comparison(all_metrics, save_path):
 
 def print_metrics_table(all_metrics):
     """Print metrics in table format for paper."""
-    models = ['proposed', 'gpt', 'claude', 'gemini', 'maskrcnn']
+    models = MODEL_ORDER
     
     print("\n" + "="*90)
     print("TABLE: Quantitative Comparison of TC Detection and Localization Performance")
@@ -708,23 +740,16 @@ def print_metrics_table(all_metrics):
 
 # ==================== Main ====================
 def main():
-    base_path = Path(r"figures")
+    figures_dir = Path("figures")
+    results_dir = Path("results")
     
     # Load all model results
     print("Loading data...")
-    model_files = {
-        'proposed': 'TCG-LLM.jsonl',
-        'claude': 'claude.jsonl',
-        'gpt': 'gpt.jsonl',
-        'gemini': 'gemini.jsonl',
-        'maskrcnn': 'maskrcnn.jsonl',
-    }
-    
     all_data = {}
-    for model, filename in model_files.items():
-        filepath = base_path / filename
+    for model in MODEL_ORDER:
+        filepath = resolve_result_file(results_dir, model)
         all_data[model] = load_jsonl(filepath)
-        print(f"  Loaded {model}: {len(all_data[model])} records")
+        print(f"  Loaded {MODEL_NAMES[model]} from {filepath.name}: {len(all_data[model])} records")
     
     # Calculate metrics
     print("\nCalculating metrics...")
@@ -748,7 +773,7 @@ def main():
     # plot_boxplot_comparison(all_metrics, str(base_path / "fig_error_boxplot.png"))
     
     # Figure 3: Comprehensive comparison 
-    plot_comprehensive_comparison(all_metrics, str(base_path / "fig_comprehensive_comparison.png"))
+    plot_comprehensive_comparison(all_metrics, str(figures_dir / "fig_comprehensive_comparison.png"))
     
     # Figure 4: Radar chart
     # plot_radar_comparison(all_metrics, str(base_path / "fig_radar_comparison.png"))

@@ -162,7 +162,7 @@ We compare the chain-of-thought reasoning on the same input with and without the
 > (3) I identify 3 tropical cyclones.
 > → **Prediction: count=3, positions: (29.8°N, 127.2°E), (12.1°N, 144.7°E), (16.6°N, 126.1°E)** ✓ All 3 detected
 
-### Analysis: How Injected Features Alter Reasoning
+### Analysis:
 
 Vanilla SFT's CoT Step (1) relies solely on satellite cloud morphology; its Step (2) can only reference basin-level textual statistics (e.g., "basin-average SST 28.9°C"), which lack the spatial resolution to distinguish localized TC signatures. This leads to two critical failures: **(a) no physical consistency verification** — without localized SST data, the model cannot verify whether thermodynamic conditions (SST ≥ 26.5°C) support TC genesis at specific candidate locations; **(b) inability to distinguish meteorological phenomena** — the model cannot differentiate between a genuine TC, a monsoon trough, an easterly wave, or a subtropical low based on morphology alone, causing it to both miss ambiguous TCs (the 30°N system) and fail to provide a principled basis for excluding non-TC features.
 

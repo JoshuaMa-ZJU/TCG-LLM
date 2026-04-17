@@ -31,12 +31,10 @@ MODEL_ORDER = ['proposed', 'qwen35', 'gemma4', 'qwen3vl8b', 'gpt']
 MODEL_FILE_CANDIDATES = {
     'proposed': ['TCG-LLM.jsonl'],
     'qwen35': ['qwen35_9b.jsonl', 'qwen3.5.jsonl', 'qwen35.jsonl', 'Qwen3.5-9B.jsonl'],
-    'gemma4': ['gemma4_e4b.jsonl', 'gemma4e4b.jsonl', 'gemma4.jsonl', 'Gemma4.jsonl', 'Gemma-4-E4B.jsonl'],
+    'gemma4': ['gemma4e4b.jsonl', 'gemma4.jsonl', 'Gemma4.jsonl', 'Gemma-4-E4B.jsonl'],
     'qwen3vl8b': ['qwen3vl8b.jsonl', 'qwen3-vl-8b.jsonl', 'Qwen3-VL-8B.jsonl'],
     'gpt': ['gpt.jsonl'],
 }
-
-RESULT_SEARCH_DIRS = [Path('results'), Path(r'C:\Users\J0shu\Desktop\final_results')]
 
 # Set Times New Roman font
 plt.rcParams['font.family'] = 'Times New Roman'
@@ -63,20 +61,12 @@ def load_jsonl(filepath):
 
 def resolve_result_file(results_dir, model_key):
     """Resolve a model result file from common filename aliases."""
-    search_dirs = [results_dir]
-    for extra_dir in RESULT_SEARCH_DIRS:
-        if extra_dir not in search_dirs:
-            search_dirs.append(extra_dir)
+    for candidate in MODEL_FILE_CANDIDATES[model_key]:
+        filepath = results_dir / candidate
+        if filepath.exists():
+            return filepath
 
-    for search_dir in search_dirs:
-        for candidate in MODEL_FILE_CANDIDATES[model_key]:
-            filepath = search_dir / candidate
-            if filepath.exists():
-                return filepath
-
-    available = ', '.join(
-        sorted({p.name for search_dir in search_dirs if search_dir.exists() for p in search_dir.glob('*.jsonl')})
-    )
+    available = ', '.join(sorted(p.name for p in results_dir.glob('*.jsonl')))
     expected = ', '.join(MODEL_FILE_CANDIDATES[model_key])
     raise FileNotFoundError(
         f"Missing result file for {MODEL_NAMES[model_key]}. "
